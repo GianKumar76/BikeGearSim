@@ -55,17 +55,17 @@ export class DrivetrainRenderer {
 
     const scale = Math.max(0.65, Math.min(1.15, h / 195));
 
-    // 3D Perspective View Layout (Compact distance & more directly from behind):
+    // 3D Perspective View Layout (Steep rear perspective viewed directly along the chainline):
     // Rear Cassette in foreground-left (closer to viewer)
-    const baseRearX = w * 0.33;
+    const baseRearX = w * 0.30;
     const baseRearY = h * 0.46;
 
-    // Front Chainrings in background-right (closer horizontal distance)
-    const baseFrontX = w * 0.68;
+    // Front Chainrings in background-right (shortened distance, viewed in deep perspective)
+    const baseFrontX = w * 0.65;
     const baseFrontY = h * 0.46;
 
-    // Perspective Ellipse Ratios (Looking more directly from behind along chainline):
-    const rxScale = 0.38; // Narrower horizontal width for sharper rear perspective
+    // Deep Perspective Ellipse Ratios (viewed almost edge-on from the rear):
+    const rxScale = 0.22; // Slim horizontal ellipse width for true rear perspective
     const ryScale = 0.98; // Full vertical diameter
 
     // 1. Draw 3D Bike Frame Tubes (Chainstay & Seatstay in perspective)
@@ -99,7 +99,7 @@ export class DrivetrainRenderer {
 
     // 3D Chainstay from Rear Dropout to Front Bottom Bracket
     ctx.beginPath();
-    ctx.moveTo(rx - 45 * scale, ry);
+    ctx.moveTo(rx - 55 * scale, ry);
     ctx.lineTo(fx, fy);
     ctx.stroke();
 
@@ -107,20 +107,20 @@ export class DrivetrainRenderer {
     ctx.lineWidth = 9 * scale;
     ctx.beginPath();
     ctx.moveTo(fx, fy);
-    ctx.lineTo(fx - 35 * scale, fy - 90 * scale);
+    ctx.lineTo(fx - 30 * scale, fy - 90 * scale);
     ctx.stroke();
 
     // 3D Seatstay from Rear Dropout to Seat cluster
     ctx.lineWidth = 7 * scale;
     ctx.beginPath();
-    ctx.moveTo(rx - 45 * scale, ry);
-    ctx.lineTo(fx - 35 * scale, fy - 90 * scale);
+    ctx.moveTo(rx - 55 * scale, ry);
+    ctx.lineTo(fx - 30 * scale, fy - 90 * scale);
     ctx.stroke();
 
     // Dropout clamp highlight
     ctx.fillStyle = '#2d3546';
     ctx.beginPath();
-    ctx.arc(rx - 45 * scale, ry, 10 * scale, 0, Math.PI * 2);
+    ctx.arc(rx - 55 * scale, ry, 10 * scale, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
@@ -136,8 +136,8 @@ export class DrivetrainRenderer {
     const sprocketCoords = [];
 
     // Lateral 3D depth step per sprocket (fanned out along the axle)
-    const stepDx = 7.6 * scale;
-    const stepDy = 0.8 * scale;
+    const stepDx = 8.5 * scale;
+    const stepDy = 0.5 * scale;
 
     // Calculate 3D positions for all 11 sprockets
     for (let i = 0; i < numSprockets; i++) {
