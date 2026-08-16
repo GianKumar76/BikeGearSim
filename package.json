@@ -1,0 +1,13 @@
+{
+  "name": "bike-gear-sim",
+  "version": "1.0.0",
+  "description": "Shimano Rennrad Gangschaltungssimulator & Trainer",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs"
+  },
+  "keywords": ["bike", "cycling", "shimano", "gear-simulator", "trainer"],
+  "author": "",
+  "license": "MIT"
+}

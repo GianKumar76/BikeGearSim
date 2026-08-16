@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shimano Rennrad Gangschaltungssimulator & Trainer</title>
+  <meta name="description" content="Interaktiver Shimano 2x11 Gangschaltungssimulator und Trainer für das Rennrad mit Fahrphysik, Höhenprofil, Ampel-Szenarien und 3-Minuten Challenge.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,600;0,700;1,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Top Header Bar -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-badge">SHIMANO STI</div>
+        <div class="brand-title-wrap">
+          <h1 class="brand-title">Rennrad Gangschaltungs-Trainer</h1>
+          <span class="brand-sub">2x11 Schaltungssimulator • Mechanische Hebel</span>
+        </div>
+      </div>
+
+      <!-- Mode & Sound Controls -->
+      <div class="header-center">
+        <div class="mode-toggle-group">
+          <button id="btnModeChallenge" class="mode-btn active" title="Strecken-Prüfung: Ziel 0 Fehler">Challenge</button>
+          <button id="btnModeCoach" class="mode-btn" title="🎓 Pro-Coach Demo: Der Trainer fährt und erklärt jeden Schaltvorgang live">🎓 Pro-Coach Demo</button>
+          <button id="btnModeFree" class="mode-btn" title="Freies Fahren ohne Begrenzung">Freie Fahrt</button>
+        </div>
+        <button id="btnSoundToggle" class="sound-toggle-btn" title="Audio an/aus">🔊 Ton An</button>
+      </div>
+
+      <!-- Session State & Errors -->
+      <div class="header-session-info">
+        <div class="session-stat-card">
+          <span class="stat-label">ZEIT</span>
+          <span class="stat-value" id="timerDisplay">0:00</span>
+        </div>
+
+        <div class="session-stat-card error-card">
+          <span class="stat-label">FEHLER</span>
+          <span class="stat-value error-value" id="errorCounterVal">0</span>
+        </div>
+
+        <div class="session-actions">
+          <button id="btnStartPause" class="action-btn btn-primary">▶ Session Starten</button>
+          <button id="btnReset" class="action-btn btn-secondary" title="Neu starten (R)">↻ Reset</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 3-Min Session Progress Bar -->
+    <div class="progress-bar-container">
+      <div id="sessionProgressBar" class="progress-bar-fill"></div>
+    </div>
+
+    <!-- Pro-Coach Live Commentary Banner (Active ONLY during Coach Demo Mode) -->
+    <section id="coachCommentaryStrip" class="coach-commentary-strip hidden">
+      <div class="coach-commentary-box">
+        <div class="coach-avatar-badge">
+          <span class="coach-icon">🎓</span>
+          <span class="coach-title">PRO COACH</span>
+        </div>
+        <div id="coachCommentaryText" class="coach-commentary-text">
+          "Trainer bereit: Klicke auf Session Starten, um die ideale Schaltstrategie mit Hebelanimationen zu sehen."
+        </div>
+      </div>
+    </section>
+
+    <!-- Live Shifting Feedback Banner -->
+    <section class="feedback-strip">
+      <div id="feedbackBanner" class="feedback-banner status-green">
+        <div class="feedback-left">
+          <span id="feedbackStatusPill" class="feedback-pill">GRÜN</span>
+          <span id="feedbackText" class="feedback-msg">Bereit zur Fahrt. Finde deine optimale Trittfrequenz (85-95 RPM).</span>
+        </div>
+        <div class="feedback-scenario">
+          <span class="scenario-tag" id="scenarioTitle">Flachstück / Einrollen</span>
+          <span class="scenario-sub" id="scenarioAdvice">Trittfrequenz im Sweetspot halten</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Workspace Split: Landscape & Telemetry HUD -->
+    <main class="sim-main-grid">
+
+      <!-- Left / Top: 2D Route Canvas (Landscape + Elevation Profile) -->
+      <section class="route-view-panel">
+        <div class="panel-header">
+          <span class="panel-title">Streckenprofil & Szenario</span>
+          <div class="route-legend">
+            <span class="legend-item"><span class="dot dot-green"></span> Optimal (85-95 RPM)</span>
+            <span class="legend-item"><span class="dot dot-yellow"></span> Toleranz</span>
+            <span class="legend-item"><span class="dot dot-red"></span> Fehlerzone</span>
+          </div>
+        </div>
+        <div class="canvas-wrapper">
+          <canvas id="profileCanvas"></canvas>
+
+          <!-- 100m Traffic Light Countdown Overlay -->
+          <div id="trafficLightOverlay" class="traffic-light-overlay hidden">
+            <div class="tl-housing">
+              <div class="tl-bulb tl-red" id="tlBulbRed"></div>
+              <div class="tl-bulb tl-yellow" id="tlBulbYellow"></div>
+              <div class="tl-bulb tl-green" id="tlBulbGreen"></div>
+            </div>
+            <div class="tl-content">
+              <div class="tl-badge-header">
+                <span class="tl-badge-pulse"></span>
+                <span class="tl-badge-text">AMPEL VORAUS</span>
+              </div>
+              <div class="tl-countdown-box">
+                <span id="tlCountdownMeters" class="tl-countdown-val">100</span>
+                <span id="tlCountdownUnit" class="tl-countdown-unit">M</span>
+              </div>
+              <div id="tlCountdownAdvice" class="tl-countdown-sub">Vor dem Stillstand runterschalten!</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Telemetry Dashboard Strip -->
+      <section class="telemetry-panel">
+        
+        <!-- Speed -->
+        <div class="telemetry-card">
+          <div class="telemetry-header">
+            <span class="telemetry-label">GESCHWINDIGKEIT</span>
+            <span class="telemetry-unit">km/h</span>
+          </div>
+          <div class="telemetry-val-wrap">
+            <span id="speedVal" class="telemetry-val">30.0</span>
+          </div>
+        </div>
+
+        <!-- Cadence (Trittfrequenz) with Sweetspot Indicator -->
+        <div class="telemetry-card cadence-card">
+          <div class="telemetry-header">
+            <span class="telemetry-label">TRITTFREQUENZ</span>
+            <span class="telemetry-unit">RPM</span>
+          </div>
+          <div class="telemetry-val-wrap">
+            <span id="cadenceVal" class="telemetry-val cadence-val">90</span>
+            <div class="cadence-target-badge">Ziel: 85–95</div>
+          </div>
+          <div id="cadenceProgressRing" class="cadence-mini-bar"></div>
+        </div>
+
+        <!-- Kraft-Modus (Effort Levels: Leicht / Normal: 27 km/h / Stark) -->
+        <div class="telemetry-card power-card">
+          <div class="telemetry-header">
+            <span class="telemetry-label">KRAFT-MODUS</span>
+            <span class="telemetry-unit" id="powerWattsUnit">165 W</span>
+          </div>
+          <div class="telemetry-val-wrap">
+            <span id="effortNameVal" class="telemetry-val effort-val">Normal</span>
+          </div>
+          <div class="effort-selector-bar">
+            <button id="btnEffortLeicht" class="effort-btn" title="Leicht (110W)">Leicht</button>
+            <button id="btnEffortNormal" class="effort-btn active" title="Normal (165W - 27 km/h)">Normal</button>
+            <button id="btnEffortStark" class="effort-btn" title="Stark (280W - Berg/Sprint)">Stark</button>
+          </div>
+        </div>
+
+        <!-- Steigung (Grade %) -->
+        <div class="telemetry-card">
+          <div class="telemetry-header">
+            <span class="telemetry-label">STEIGUNG</span>
+            <span class="telemetry-unit">%</span>
+          </div>
+          <div class="telemetry-val-wrap">
+            <span id="gradeVal" class="telemetry-val grade-flat">0.0%</span>
+          </div>
+        </div>
+
+        <!-- Selected Gear & Ratio -->
+        <div class="telemetry-card gear-card">
+          <div class="telemetry-header">
+            <span class="telemetry-label">GANGSTUFE</span>
+            <span class="telemetry-unit">Vorne × Hinten</span>
+          </div>
+          <div class="telemetry-val-wrap">
+            <span id="gearNameVal" class="telemetry-val gear-name">50 × 15</span>
+          </div>
+          <div class="gear-sub-stats">
+            <span>Ratio: <strong id="gearRatioVal">3.33</strong></span>
+            <span>Entfaltung: <strong id="developmentVal">7.07 m</strong></span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Bottom: Shimano STI Cockpit & Drivetrain Interactive Section -->
+      <section class="cockpit-panel">
+        
+        <!-- Left STI Shifter (Front Derailleur) -->
+        <div class="shifter-column left-column">
+          <div class="column-title">
+            <span class="badge-ring">VORNE (2x)</span>
+            <h3>Linker STI Hebel</h3>
+          </div>
+          <div id="leftShifterContainer" class="shifter-render-box"></div>
+          <div class="key-help-card">
+            <div class="key-row"><kbd>Q</kbd> <span>Großer Hebel = <strong>50er Blatt</strong> (Schwerer)</span></div>
+            <div class="key-row"><kbd>A</kbd> <span>Kleiner Hebel = <strong>34er Blatt</strong> (Leichter)</span></div>
+          </div>
+        </div>
+
+        <!-- Center: Interactive Drivetrain & Cassette Canvas -->
+        <div class="drivetrain-column">
+          <div class="column-title">
+            <span class="badge-ring">ANTRIEB</span>
+            <h3>Kettenblätter & 11-fach Kassette</h3>
+          </div>
+          <div class="cassette-canvas-wrap">
+            <canvas id="cassetteCanvas"></canvas>
+          </div>
+          <div class="drivetrain-legend">
+            <span class="info-tag">💡 Schräglauf vermeiden: Nicht Groß-Groß (50x30) oder Klein-Klein (34x11) fahren!</span>
+          </div>
+        </div>
+
+        <!-- Right STI Shifter (Rear Derailleur) -->
+        <div class="shifter-column right-column">
+          <div class="column-title">
+            <span class="badge-ring">HINTEN (11-fach)</span>
+            <h3>Rechter STI Hebel</h3>
+          </div>
+          <div id="rightShifterContainer" class="shifter-render-box"></div>
+          <div class="key-help-card">
+            <div class="key-row"><kbd>Ü</kbd> / <kbd>U</kbd> <span>Großer Hebel = <strong>Größeres Ritzel</strong> (Leichter / Berg)</span></div>
+            <div class="key-row"><kbd>Ä</kbd> / <kbd>L</kbd> <span>Kleiner Hebel = <strong>Kleineres Ritzel</strong> (Schwerer / Sprint)</span></div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Footer Controls & Hotkey Overview -->
+    <footer class="app-footer">
+      <div class="hotkey-bar">
+        <span class="hotkey-item"><kbd>Q</kbd> / <kbd>A</kbd> Vorne (50/34)</span>
+        <span class="hotkey-item"><kbd>Ü</kbd> / <kbd>Ä</kbd> Hinten (11-30)</span>
+        <span class="hotkey-item"><kbd>Leertaste</kbd> Kraft (Leicht / Normal / Stark)</span>
+        <span class="hotkey-item"><kbd>P</kbd> Pause</span>
+        <span class="hotkey-item"><kbd>R</kbd> Reset</span>
+      </div>
+    </footer>
+
+    <!-- Result / Evaluation Modal -->
+    <div id="resultModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div id="resultRankBadge" class="result-badge rank-pro">🏆 0 FEHLER</div>
+          <h2 id="resultRankTitle" class="modal-title">WorldTour Profi</h2>
+          <p id="resultRankSubtitle" class="modal-subtitle">Perfekte Schaltstrategie auf allen Streckenabschnitten!</p>
+        </div>
+
+        <!-- Score Breakdown Stats -->
+        <div class="modal-stats-grid">
+          <div class="mstat-item">
+            <span class="mstat-label">Schaltfehler</span>
+            <span id="resultErrorCount" class="mstat-val error-accent">0</span>
+          </div>
+          <div class="mstat-item">
+            <span class="mstat-label">Im Sweetspot (Grün)</span>
+            <span id="resultGreenPercent" class="mstat-val green-accent">92%</span>
+          </div>
+          <div class="mstat-item">
+            <span class="mstat-label">Toleranzbereich (Gelb)</span>
+            <span id="resultYellowPercent" class="mstat-val yellow-accent">8%</span>
+          </div>
+          <div class="mstat-item">
+            <span class="mstat-label">Fehlerbereich (Rot)</span>
+            <span id="resultRedPercent" class="mstat-val red-accent">0%</span>
+          </div>
+        </div>
+
+        <!-- Mistake details list -->
+        <div class="modal-log-section">
+          <h3>Detail-Auswertung der Schaltentscheidungen</h3>
+          <div id="resultErrorList" class="error-log-list"></div>
+        </div>
+
+        <!-- Modal Actions -->
+        <div class="modal-actions">
+          <button id="btnRestartSession" class="action-btn btn-primary modal-btn">🔄 Erneut versuchen (Ziel: 0 Fehler)</button>
+          <button id="btnCloseModal" class="action-btn btn-secondary modal-btn">Schließen</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
