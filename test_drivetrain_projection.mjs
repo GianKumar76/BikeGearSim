@@ -21,7 +21,14 @@ assert.ok(Math.abs(Math.hypot(
   projectedFarRing.x - projectedNearRing.x,
   projectedFarRing.y - projectedNearRing.y
 ) - 22) < EPSILON);
-assert.ok(camera.ellipseRotation < 0);
+const longitudinalAngle = Math.atan2(
+  camera.longitudinalVector.y,
+  camera.longitudinalVector.x
+);
+assert.ok(longitudinalAngle < -0.09 && longitudinalAngle > -0.25);
+assert.ok(camera.verticalVector.x < 0 && camera.verticalVector.y > 0);
+assert.ok(camera.axleVector.x > 0 && camera.axleVector.y > 0.45);
+assert.ok(Math.abs(camera.ellipseRotation - longitudinalAngle) < EPSILON);
 
 const geometry = createDrivetrainGeometry({
   width: 1280,
@@ -31,7 +38,7 @@ const geometry = createDrivetrainGeometry({
   chainrings: [34, 50]
 });
 
-assert.equal(geometry.projection.rxScale, 0.30);
+assert.equal(geometry.projection.rxScale, 0.38);
 assert.equal(geometry.projection.ryScale, 1);
 assert.strictEqual(geometry.camera, geometry.projection.camera);
 assert.equal(geometry.projection.ellipseRotation, camera.ellipseRotation);

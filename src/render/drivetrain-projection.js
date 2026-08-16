@@ -1,4 +1,4 @@
-export const DISC_RX_SCALE = 0.30;
+export const DISC_RX_SCALE = 0.38;
 export const DISC_RY_SCALE = 1;
 
 const unit = ({ x, y }) => {
@@ -10,15 +10,15 @@ export const DEPTH_VECTOR = Object.freeze(unit({ x: 0.98, y: 0.20 }));
 
 export function createCamera({ width, height, scale }) {
   const longitudinalVector = {
-    x: (width * 0.52 / 180) * scale,
-    y: (-height * 0.06 / 180) * scale
+    x: (width * 0.48 / 180) * scale,
+    y: (-height * 0.38 / 180) * scale
   };
 
   return {
-    origin: { x: width * 0.22, y: height * 0.52 },
+    origin: { x: width * 0.27, y: height * 0.68 },
     longitudinalVector,
-    verticalVector: { x: 0, y: scale },
-    axleVector: DEPTH_VECTOR,
+    verticalVector: { x: -0.32 * scale, y: 0.92 * scale },
+    axleVector: unit({ x: 0.72, y: 0.70 }),
     ellipseRotation: Math.atan2(longitudinalVector.y, longitudinalVector.x)
   };
 }
