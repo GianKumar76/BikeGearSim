@@ -68,3 +68,76 @@ export function createDrivetrainGeometry({ width, height, scale, cassette, chain
     frontRings
   };
 }
+
+const toCircleSpace = (point, projection) => ({
+  x: point.x / projection.rxScale,
+  y: point.y / projection.ryScale
+});
+
+const toScreenSpace = (point, projection) => ({
+  x: point.x * projection.rxScale,
+  y: point.y * projection.ryScale
+});
+
+function externalTangentPair(first, second, projection) {
+  const a = toCircleSpace(first, projection);
+  const b = toCircleSpace(second, projection);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const distance = Math.hypot(dx, dy);
+  const ux = dx / distance;
+  const uy = dy / distance;
+  const radiusDelta = first.r - second.r;
+  const along = radiusDelta / distance;
+  const across = Math.sqrt(1 - along * along);
+
+  return [-1, 1].map((sign) => {
+    const nx = ux * along + (-uy) * across * sign;
+    const ny = uy * along + ux * across * sign;
+
+    return {
+      first: toScreenSpace({
+        x: a.x + nx * first.r,
+        y: a.y + ny * first.r
+      }, projection),
+      second: toScreenSpace({
+        x: b.x + nx * second.r,
+        y: b.y + ny * second.r
+      }, projection)
+    };
+  });
+}
+
+const ellipseAngle = (point, center, projection) => Math.atan2(
+  (point.y - center.y) / projection.ryScale,
+  (point.x - center.x) / projection.rxScale
+);
+
+export function createChainPathGeometry({ sprocket, frontRing, projection, scale }) {
+  const tangents = externalTangentPair(sprocket, frontRing, projection);
+  const top = tangents.reduce((best, candidate) =>
+    candidate.first.y < best.first.y ? candidate : best
+  );
+  const bottom = tangents.reduce((best, candidate) =>
+    candidate.first.y > best.first.y ? candidate : best
+  );
+
+  return {
+    rearTop: top.first,
+    frontTop: top.second,
+    rearBottom: bottom.first,
+    frontBottom: bottom.second,
+    rearTopAngle: ellipseAngle(top.first, sprocket, projection),
+    frontTopAngle: ellipseAngle(top.second, frontRing, projection),
+    rearBottomAngle: ellipseAngle(bottom.first, sprocket, projection),
+    frontBottomAngle: ellipseAngle(bottom.second, frontRing, projection),
+    guidePulley: {
+      x: sprocket.x - 3 * scale,
+      y: bottom.first.y + 13 * scale
+    },
+    tensionPulley: {
+      x: sprocket.x + 6 * scale,
+      y: bottom.first.y + 34 * scale
+    }
+  };
+}

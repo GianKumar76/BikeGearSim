@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { createDrivetrainGeometry } from './src/render/drivetrain-projection.js';
+import {
+  createChainPathGeometry,
+  createDrivetrainGeometry
+} from './src/render/drivetrain-projection.js';
 
 const EPSILON = 1e-9;
 const geometry = createDrivetrainGeometry({
@@ -35,3 +38,39 @@ assertFollowsDepth(geometry.frontRings[0], geometry.frontRings[1]);
 assert.ok(geometry.sprockets[0].r < geometry.sprockets.at(-1).r);
 assert.ok(geometry.frontRings[0].r < geometry.frontRings[1].r);
 console.log('✓ Unified drivetrain projection geometry');
+
+const activeRear = geometry.sprockets[4];
+const activeFront = geometry.frontRings[1];
+const chain = createChainPathGeometry({
+  sprocket: activeRear,
+  frontRing: activeFront,
+  projection: geometry.projection,
+  scale: 1
+});
+
+const normalizedPoint = (point, center, radius, projection) => ({
+  x: (point.x - center.x) / (radius * projection.rxScale),
+  y: (point.y - center.y) / (radius * projection.ryScale)
+});
+
+for (const [point, center] of [
+  [chain.rearTop, activeRear],
+  [chain.rearBottom, activeRear],
+  [chain.frontTop, activeFront],
+  [chain.frontBottom, activeFront]
+]) {
+  const unit = normalizedPoint(point, center, center.r, geometry.projection);
+  assert.ok(Math.abs(Math.hypot(unit.x, unit.y) - 1) < EPSILON);
+}
+
+const topRearUnit = normalizedPoint(chain.rearTop, activeRear, activeRear.r, geometry.projection);
+const topLine = {
+  x: (chain.frontTop.x - chain.rearTop.x) / geometry.projection.rxScale,
+  y: (chain.frontTop.y - chain.rearTop.y) / geometry.projection.ryScale
+};
+
+assert.ok(Math.abs(topRearUnit.x * topLine.x + topRearUnit.y * topLine.y) < EPSILON);
+assert.ok(chain.rearTop.y < activeRear.y);
+assert.ok(chain.frontTop.y < activeFront.y);
+assert.ok(chain.frontBottom.y > activeFront.y);
+console.log('✓ Projected chain tangents');
