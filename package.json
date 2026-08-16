@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "dev": "node server.mjs"
+    "dev": "node server.mjs",
+    "test": "node test_sim.mjs && node test_drivetrain_projection.mjs && node test_drivetrain_renderer.mjs"
   },
   "keywords": ["bike", "cycling", "shimano", "gear-simulator", "trainer"],
   "author": "",
