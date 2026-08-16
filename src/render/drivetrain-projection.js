@@ -149,6 +149,15 @@ const ellipseAngle = (point, center, projection) => {
   return Math.atan2(local.y, local.x);
 };
 
+const offsetByCamera = (point, vertical, axle, projection) => ({
+  x: point.x
+    + vertical * projection.camera.verticalVector.x
+    + axle * projection.depthVector.x,
+  y: point.y
+    + vertical * projection.camera.verticalVector.y
+    + axle * projection.depthVector.y
+});
+
 export function createChainPathGeometry({ sprocket, frontRing, projection, scale }) {
   const tangents = externalTangentPair(sprocket, frontRing, projection);
   const top = tangents.reduce((best, candidate) =>
@@ -167,13 +176,7 @@ export function createChainPathGeometry({ sprocket, frontRing, projection, scale
     frontTopAngle: ellipseAngle(top.second, frontRing, projection),
     rearBottomAngle: ellipseAngle(bottom.first, sprocket, projection),
     frontBottomAngle: ellipseAngle(bottom.second, frontRing, projection),
-    guidePulley: {
-      x: sprocket.x - 3 * scale,
-      y: bottom.first.y + 13 * scale
-    },
-    tensionPulley: {
-      x: sprocket.x + 6 * scale,
-      y: bottom.first.y + 34 * scale
-    }
+    guidePulley: offsetByCamera(bottom.first, 14 * scale, -7 * scale, projection),
+    tensionPulley: offsetByCamera(bottom.first, 34 * scale, 5 * scale, projection)
   };
 }

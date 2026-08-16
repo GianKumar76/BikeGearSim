@@ -107,9 +107,25 @@ for (const [point, center] of [
 
 const topRearUnit = normalizedPoint(chain.rearTop, activeRear, activeRear.r, geometry.projection);
 const topLine = toEllipseSpace(chain.frontTop, chain.rearTop, geometry.projection);
+const offsetByCamera = (point, vertical, axle, projection) => ({
+  x: point.x
+    + vertical * projection.camera.verticalVector.x
+    + axle * projection.depthVector.x,
+  y: point.y
+    + vertical * projection.camera.verticalVector.y
+    + axle * projection.depthVector.y
+});
 
 assert.ok(Math.abs(topRearUnit.x * topLine.x + topRearUnit.y * topLine.y) < EPSILON);
 assert.ok(chain.rearTop.y < activeRear.y);
 assert.ok(chain.frontTop.y < activeFront.y);
 assert.ok(chain.frontBottom.y > activeFront.y);
+assert.deepEqual(
+  chain.guidePulley,
+  offsetByCamera(chain.rearBottom, 14, -7, geometry.projection)
+);
+assert.deepEqual(
+  chain.tensionPulley,
+  offsetByCamera(chain.rearBottom, 34, 5, geometry.projection)
+);
 console.log('✓ Projected chain tangents');
