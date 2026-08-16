@@ -55,18 +55,18 @@ export class DrivetrainRenderer {
 
     const scale = Math.max(0.65, Math.min(1.15, h / 195));
 
-    // 3D Perspective View Layout:
-    // Rear Cassette in the foreground-left (closer to viewer)
-    const baseRearX = w * 0.28;
+    // 3D Perspective View Layout (Compact distance & more directly from behind):
+    // Rear Cassette in foreground-left (closer to viewer)
+    const baseRearX = w * 0.33;
     const baseRearY = h * 0.46;
 
-    // Front Chainrings in the background-right (further away in depth)
-    const baseFrontX = w * 0.77;
+    // Front Chainrings in background-right (closer horizontal distance)
+    const baseFrontX = w * 0.68;
     const baseFrontY = h * 0.46;
 
-    // Perspective Ellipse Ratios (viewed obliquely at ~35° angle):
-    const rxScale = 0.58; // Foreshortened horizontal width of 3D discs
-    const ryScale = 0.96; // Full vertical diameter
+    // Perspective Ellipse Ratios (Looking more directly from behind along chainline):
+    const rxScale = 0.38; // Narrower horizontal width for sharper rear perspective
+    const ryScale = 0.98; // Full vertical diameter
 
     // 1. Draw 3D Bike Frame Tubes (Chainstay & Seatstay in perspective)
     this.drawPerspectiveFrame(baseRearX, baseRearY, baseFrontX, baseFrontY, scale);
@@ -83,7 +83,7 @@ export class DrivetrainRenderer {
     this.draw3DChain(sprocketCoords[rearIndex], chainringCoords[frontIndex], rearTeeth, frontTeeth, crossChaining, rxScale, ryScale, scale);
 
     // 5. Draw 3D Rear Derailleur shifting under the active rear sprocket
-    this.draw3DDerailleur(sprocketCoords[rearIndex], rearTeeth, this.pulleyAngle, scale);
+    this.draw3DDerailleur(sprocketCoords[rearIndex], rearTeeth, this.pulleyAngle, rxScale, ryScale, scale);
 
     // 6. Draw 3D HUD Chainline & Gear Position Indicator at bottom
     this.drawPerspectiveHUD(w, h, frontIndex, rearIndex, chainrings, cassette, crossChaining, scale);
@@ -99,7 +99,7 @@ export class DrivetrainRenderer {
 
     // 3D Chainstay from Rear Dropout to Front Bottom Bracket
     ctx.beginPath();
-    ctx.moveTo(rx - 30 * scale, ry);
+    ctx.moveTo(rx - 45 * scale, ry);
     ctx.lineTo(fx, fy);
     ctx.stroke();
 
@@ -107,20 +107,20 @@ export class DrivetrainRenderer {
     ctx.lineWidth = 9 * scale;
     ctx.beginPath();
     ctx.moveTo(fx, fy);
-    ctx.lineTo(fx - 40 * scale, fy - 90 * scale);
+    ctx.lineTo(fx - 35 * scale, fy - 90 * scale);
     ctx.stroke();
 
     // 3D Seatstay from Rear Dropout to Seat cluster
     ctx.lineWidth = 7 * scale;
     ctx.beginPath();
-    ctx.moveTo(rx - 30 * scale, ry);
-    ctx.lineTo(fx - 40 * scale, fy - 90 * scale);
+    ctx.moveTo(rx - 45 * scale, ry);
+    ctx.lineTo(fx - 35 * scale, fy - 90 * scale);
     ctx.stroke();
 
     // Dropout clamp highlight
     ctx.fillStyle = '#2d3546';
     ctx.beginPath();
-    ctx.arc(rx - 30 * scale, ry, 10 * scale, 0, Math.PI * 2);
+    ctx.arc(rx - 45 * scale, ry, 10 * scale, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
@@ -135,9 +135,9 @@ export class DrivetrainRenderer {
     const numSprockets = cassette.length; // 11
     const sprocketCoords = [];
 
-    // Lateral 3D depth step per sprocket (closer to viewer as i decreases towards 11T)
-    const stepDx = 6.2 * scale;
-    const stepDy = 1.4 * scale;
+    // Lateral 3D depth step per sprocket (fanned out along the axle)
+    const stepDx = 7.6 * scale;
+    const stepDy = 0.8 * scale;
 
     // Calculate 3D positions for all 11 sprockets
     for (let i = 0; i < numSprockets; i++) {
@@ -620,9 +620,9 @@ export class DrivetrainRenderer {
   /**
    * Draw 3D Rear Derailleur shifting under the active rear cog in 3D
    */
-  draw3DDerailleur(activeSprocket, rearTeeth, pulleyAngle, scale = 1) {
+  draw3DDerailleur(activeSprocket, rearTeeth, pulleyAngle, rxScale, ryScale, scale = 1) {
     const ctx = this.ctx;
-    const rRearY = activeSprocket.r * 0.96;
+    const rRearY = activeSprocket.r * ryScale;
 
     const guideX = activeSprocket.x - 4 * scale;
     const guideY = activeSprocket.y + rRearY + 14 * scale;
@@ -649,7 +649,7 @@ export class DrivetrainRenderer {
       ctx.strokeStyle = '#00e5ff';
       ctx.lineWidth = 1.5 * scale;
       ctx.beginPath();
-      ctx.ellipse(0, 0, 7.5 * 0.58 * scale, 7.5 * 0.96 * scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 7.5 * rxScale * scale, 7.5 * ryScale * scale, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
