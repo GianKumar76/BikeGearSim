@@ -38,10 +38,10 @@ export class ProfileRenderer {
     this.roadScrollOffset += speedMs * 30 * dtSec;
     this.cloudOffset += (speedMs * 2 + 0.2) * dtSec;
 
-    // Update crank angle strictly from active cadence (stops during coasting/freewheel!)
+    // Update crank angle strictly from active cadence (clockwise forward rotation!)
     if (cadenceRpm > 0) {
       const frontRps = cadenceRpm / 60;
-      this.crankAngle -= frontRps * Math.PI * 2 * dtSec;
+      this.crankAngle += frontRps * Math.PI * 2 * dtSec;
     }
 
     // Split Canvas into 2 regions:
@@ -104,11 +104,11 @@ export class ProfileRenderer {
     ctx.lineTo(w * 2, -3 * scale);
     ctx.stroke();
 
-    // Road dashed white center line
+    // Road dashed white center line (moves backwards under the forward-facing rider)
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2.5 * scale;
     ctx.setLineDash([20 * scale, 15 * scale]);
-    ctx.lineDashOffset = -this.roadScrollOffset;
+    ctx.lineDashOffset = this.roadScrollOffset;
     ctx.beginPath();
     ctx.moveTo(-w, 18 * scale);
     ctx.lineTo(w * 2, 18 * scale);
@@ -293,13 +293,31 @@ export class ProfileRenderer {
     const frontWheelX = 35 * scale;
     const wheelY = -wheelR;
 
-    // Wheels (Spinning spoke blur)
+    // Wheels (Rims)
     ctx.strokeStyle = '#282f3d';
     ctx.lineWidth = 2.5 * scale;
     ctx.beginPath();
     ctx.arc(rearWheelX, wheelY, wheelR, 0, Math.PI * 2);
     ctx.arc(frontWheelX, wheelY, wheelR, 0, Math.PI * 2);
     ctx.stroke();
+
+    // Wheel spokes rotating forward (clockwise with road speed)
+    const wheelAngle = this.roadScrollOffset * 0.12;
+    ctx.strokeStyle = '#3e4a5e';
+    ctx.lineWidth = 1 * scale;
+    for (let sp = 0; sp < 4; sp++) {
+      const spA = wheelAngle + (sp * Math.PI / 4);
+      // Rear spokes
+      ctx.beginPath();
+      ctx.moveTo(rearWheelX - Math.cos(spA) * wheelR * 0.88, wheelY - Math.sin(spA) * wheelR * 0.88);
+      ctx.lineTo(rearWheelX + Math.cos(spA) * wheelR * 0.88, wheelY + Math.sin(spA) * wheelR * 0.88);
+      ctx.stroke();
+      // Front spokes
+      ctx.beginPath();
+      ctx.moveTo(frontWheelX - Math.cos(spA) * wheelR * 0.88, wheelY - Math.sin(spA) * wheelR * 0.88);
+      ctx.lineTo(frontWheelX + Math.cos(spA) * wheelR * 0.88, wheelY + Math.sin(spA) * wheelR * 0.88);
+      ctx.stroke();
+    }
 
     // Wheel Hubs
     ctx.fillStyle = '#00e5ff';
