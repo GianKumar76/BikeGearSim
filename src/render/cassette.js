@@ -1,7 +1,7 @@
 /**
  * Drivetrain & Cassette 2D Canvas / SVG Renderer
- * Left: 2x Front Chainrings (50/34T) & Crankarm
- * Right: 11-Speed Rear Cassette (11-30T) & Rear Derailleur
+ * Right: 2x Front Chainrings (50/34T) & Crankarm
+ * Left: 11-Speed Rear Cassette (11-30T) & Rear Derailleur
  */
 
 export class DrivetrainRenderer {
@@ -39,44 +39,44 @@ export class DrivetrainRenderer {
 
     const { frontIndex, rearIndex, chainrings, cassette, frontTeeth, rearTeeth, crossChaining, gearRatio } = drivetrainState;
 
-    // 1. Physical Forward Rotation Calculations (Drive-side facing left):
-    // Crank rotates counter-clockwise to pull top chain forward (leftwards)
+    // Physical Forward Rotation (Drive-side facing right):
+    // Crank rotates clockwise to pull top chain forward (rightwards)
     const frontRps = (cadenceRpm / 60);
     const dFrontAngle = frontRps * Math.PI * 2 * dtSec;
-    this.crankAngle -= dFrontAngle;
+    this.crankAngle += dFrontAngle;
 
-    // Rear Cassette rotates in the same forward direction at exact gear ratio
+    // Rear Cassette rotates clockwise at exact gear ratio
     const rearRps = frontRps * gearRatio;
     const dRearAngle = rearRps * Math.PI * 2 * dtSec;
-    this.cassetteAngle -= dRearAngle;
+    this.cassetteAngle += dRearAngle;
 
     // Chain linear speed and Derailleur Pulley rotation (only when actively pedaling!)
     const chainLinearSpeedMs = frontRps > 0 ? (frontRps * (frontTeeth * 0.0127) * 2.5) : 0;
     this.chainOffset += chainLinearSpeedMs * 24 * dtSec;
-    this.pulleyAngle -= chainLinearSpeedMs * 35 * dtSec;
+    this.pulleyAngle += chainLinearSpeedMs * 35 * dtSec;
 
     // Scale factor to fit container height
     const scale = Math.max(0.65, Math.min(1.15, h / 190));
 
-    // Geometric positioning: Left = Front Chainrings, Right = Rear Cassette
-    const frontX = w * 0.25;
+    // Geometric positioning: Left = Rear Cassette, Right = Front Chainrings
+    const frontX = w * 0.75;
     const frontY = h * 0.44;
-    const rearX = w * 0.75;
+    const rearX = w * 0.25;
     const rearY = h * 0.44;
 
     // Draw chainstays & bike frame geometry silhouette
     this.drawBikeFrame(frontX, frontY, rearX, rearY, scale);
 
-    // 1. Draw Front Chainrings (2 Rings: 34T, 50T) on the LEFT
-    this.drawFrontChainrings(frontX, frontY, chainrings, frontIndex, this.crankAngle, scale);
-
-    // 2. Draw Rear Cassette (11 Sprockets) on the RIGHT
+    // 1. Draw Rear Cassette (11 Sprockets) on the LEFT
     this.drawRearCassette(rearX, rearY, cassette, rearIndex, this.cassetteAngle, scale);
 
-    // 3. Draw Chain connecting Left Front ring to Right Rear sprocket
+    // 2. Draw Front Chainrings (2 Rings: 34T, 50T) on the RIGHT
+    this.drawFrontChainrings(frontX, frontY, chainrings, frontIndex, this.crankAngle, scale);
+
+    // 3. Draw Chain connecting Left Rear cassette to Right Front ring
     this.drawChain(frontX, frontY, frontTeeth, frontIndex, rearX, rearY, rearTeeth, rearIndex, crossChaining, scale);
 
-    // 4. Draw Rear Derailleur Cage & Spinning Pulleys on the RIGHT
+    // 4. Draw Rear Derailleur Cage & Spinning Pulleys on the LEFT
     this.drawRearDerailleur(rearX, rearY, rearTeeth, rearIndex, this.pulleyAngle, scale);
 
     // 5. Draw Top-down Chainline Angle indicator (Mini HUD strip)
@@ -91,22 +91,22 @@ export class DrivetrainRenderer {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Chainstay from Front BB to Rear Dropout
+    // Chainstay from Rear Dropout to Front BB
     ctx.beginPath();
-    ctx.moveTo(fx, fy);
-    ctx.lineTo(rx, ry);
+    ctx.moveTo(rx, ry);
+    ctx.lineTo(fx, fy);
     ctx.stroke();
 
-    // Seat tube going up from BB
+    // Seat tube going up from BB backwards (towards seat)
     ctx.beginPath();
     ctx.moveTo(fx, fy);
-    ctx.lineTo(fx + 25 * scale, fy - 80 * scale);
+    ctx.lineTo(fx - 25 * scale, fy - 80 * scale);
     ctx.stroke();
 
     // Seatstay going from Rear Dropout up to Seat junction
     ctx.beginPath();
     ctx.moveTo(rx, ry);
-    ctx.lineTo(fx + 25 * scale, fy - 80 * scale);
+    ctx.lineTo(fx - 25 * scale, fy - 80 * scale);
     ctx.stroke();
 
     // Metal highlights on BB and Dropout
@@ -181,7 +181,7 @@ export class DrivetrainRenderer {
       ctx.restore();
     }
 
-    // Crankarm & Pedal on the Left
+    // Crankarm & Pedal on the Right
     ctx.save();
     ctx.translate(fx, fy);
     ctx.rotate(crankAngle);
@@ -233,7 +233,7 @@ export class DrivetrainRenderer {
       const radius = (14 + (teeth - 11) * 2.4) * scale;
       const isActive = i === activeIndex;
 
-      const stackOffsetX = (i - activeIndex) * 1.8 * scale;
+      const stackOffsetX = (activeIndex - i) * 1.8 * scale;
       const posX = rx + stackOffsetX;
 
       ctx.save();
@@ -255,30 +255,27 @@ export class DrivetrainRenderer {
       ctx.fill();
       ctx.stroke();
 
-      // Sprocket Rotating Teeth & Windows Simulation
+      // Sprocket Rotating Teeth
       ctx.save();
       ctx.translate(posX, ry);
       ctx.rotate(cassetteAngle);
 
-      // Draw fewer, distinct teeth to prevent 60fps stroboscopic frequency aliasing (wagon-wheel effect)
       const toothCount = Math.min(teeth, 14);
       ctx.strokeStyle = isActive ? '#00ffc8' : '#4a5368';
       ctx.lineWidth = 1.6 * scale;
       for (let t = 0; t < toothCount; t++) {
         const angle = (t / toothCount) * Math.PI * 2;
-        // Directional slanted teeth (pointing in drive direction)
         const tx1 = Math.cos(angle) * (radius - 2.5 * scale);
         const ty1 = Math.sin(angle) * (radius - 2.5 * scale);
-        const tx2 = Math.cos(angle - 0.12) * (radius + 2.5 * scale);
-        const ty2 = Math.sin(angle - 0.12) * (radius + 2.5 * scale);
+        const tx2 = Math.cos(angle + 0.12) * (radius + 2.5 * scale);
+        const ty2 = Math.sin(angle + 0.12) * (radius + 2.5 * scale);
         ctx.beginPath();
         ctx.moveTo(tx1, ty1);
         ctx.lineTo(tx2, ty2);
         ctx.stroke();
       }
 
-      // Directional Curved Shimano Hyperglide Spider Arms (3-arm spiral)
-      // The spiral curve makes forward rotation unmistakably clear without optical illusion
+      // Directional Curved Spider Arms (3-arm spiral)
       if (radius > 20 * scale) {
         ctx.strokeStyle = isActive ? 'rgba(0, 255, 200, 0.6)' : '#252d3d';
         ctx.lineWidth = (isActive ? 2.5 : 1.8) * scale;
@@ -292,10 +289,10 @@ export class DrivetrainRenderer {
           const rOuter = radius * 0.75;
           const x1 = Math.cos(armAngle) * rInner;
           const y1 = Math.sin(armAngle) * rInner;
-          const x2 = Math.cos(armAngle - 0.5) * rOuter;
-          const y2 = Math.sin(armAngle - 0.5) * rOuter;
-          const cpX = Math.cos(armAngle - 0.2) * (radius * 0.45);
-          const cpY = Math.sin(armAngle - 0.2) * (radius * 0.45);
+          const x2 = Math.cos(armAngle + 0.5) * rOuter;
+          const y2 = Math.sin(armAngle + 0.5) * rOuter;
+          const cpX = Math.cos(armAngle + 0.2) * (radius * 0.45);
+          const cpY = Math.sin(armAngle + 0.2) * (radius * 0.45);
 
           ctx.moveTo(x1, y1);
           ctx.quadraticCurveTo(cpX, cpY, x2, y2);
@@ -303,7 +300,7 @@ export class DrivetrainRenderer {
         }
       }
 
-      // Distinct Single Rotating Accent Dot on outer sprocket ring (eliminates any rotational ambiguity)
+      // Rotating Accent Dot
       if (radius > 26 * scale) {
         ctx.fillStyle = isActive ? '#00e5ff' : '#5a667d';
         ctx.beginPath();
@@ -312,16 +309,16 @@ export class DrivetrainRenderer {
         ctx.fill();
       }
 
-      // Machined concentric grooves
+      // Machined grooves
       ctx.strokeStyle = isActive ? 'rgba(0, 255, 200, 0.25)' : 'rgba(255, 255, 255, 0.06)';
       ctx.lineWidth = 1 * scale;
       ctx.beginPath();
       ctx.arc(0, 0, radius * 0.72, 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.restore(); // restore local rotation
+      ctx.restore();
 
-      // Static Lockring Center Label for active sprocket
+      // Static Lockring Center Label
       if (isActive) {
         ctx.fillStyle = '#ffffff';
         ctx.font = `bold ${Math.round(10 * scale)}px system-ui, sans-serif`;
@@ -350,8 +347,8 @@ export class DrivetrainRenderer {
     const pFrontTop = { x: fx, y: fy - frontRadius };
     const pRearTop = { x: rx, y: ry - rearRadius };
     const pFrontBottom = { x: fx, y: fy + frontRadius };
-    const pDerailleurGuide = { x: rx + 4 * scale, y: ry + rearRadius + 14 * scale };
-    const pDerailleurTension = { x: rx - 10 * scale, y: ry + rearRadius + 36 * scale };
+    const pDerailleurGuide = { x: rx - 4 * scale, y: ry + rearRadius + 14 * scale };
+    const pDerailleurTension = { x: rx + 10 * scale, y: ry + rearRadius + 36 * scale };
 
     let chainColor = '#00ffc8'; // 🟢 Optimal (Green)
     let chainGlow = 'rgba(0, 255, 200, 0.45)';
@@ -375,28 +372,28 @@ export class DrivetrainRenderer {
     ctx.shadowColor = chainGlow;
     ctx.shadowBlur = 7 * scale;
 
-    // Top straight run (From Left Front Chainring to Right Rear Cassette)
+    // Top straight run (From Left Rear Cassette to Right Front Chainring)
     ctx.beginPath();
-    ctx.moveTo(pFrontTop.x, pFrontTop.y);
-    ctx.lineTo(pRearTop.x, pRearTop.y);
+    ctx.moveTo(pRearTop.x, pRearTop.y);
+    ctx.lineTo(pFrontTop.x, pFrontTop.y);
     ctx.stroke();
 
-    // Wrap around rear sprocket on the right
+    // Wrap around front chainring on the right
     ctx.beginPath();
-    ctx.arc(rx, ry, rearRadius, -Math.PI / 2, Math.PI / 2, false);
+    ctx.arc(fx, fy, frontRadius, -Math.PI / 2, Math.PI / 2, false);
     ctx.stroke();
 
-    // Lower derailleur S-loop path on the right
+    // Lower derailleur S-loop path on the left
     ctx.beginPath();
-    ctx.moveTo(rx, ry + rearRadius);
-    ctx.lineTo(pDerailleurGuide.x, pDerailleurGuide.y);
+    ctx.moveTo(pFrontBottom.x, pFrontBottom.y);
     ctx.lineTo(pDerailleurTension.x, pDerailleurTension.y);
-    ctx.lineTo(pFrontBottom.x, pFrontBottom.y);
+    ctx.lineTo(pDerailleurGuide.x, pDerailleurGuide.y);
+    ctx.lineTo(rx, ry + rearRadius);
     ctx.stroke();
 
-    // Wrap around front chainring on the left
+    // Wrap around rear sprocket on the left
     ctx.beginPath();
-    ctx.arc(fx, fy, frontRadius, Math.PI / 2, -Math.PI / 2, false);
+    ctx.arc(rx, ry, rearRadius, Math.PI / 2, -Math.PI / 2, false);
     ctx.stroke();
 
     // Chain links rollers animation (moving in forward drive loop)
@@ -404,16 +401,16 @@ export class DrivetrainRenderer {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.2 * scale;
     ctx.setLineDash([3, 5]);
-    ctx.lineDashOffset = this.chainOffset;
+    ctx.lineDashOffset = -this.chainOffset;
 
     ctx.beginPath();
-    ctx.moveTo(pFrontTop.x, pFrontTop.y);
-    ctx.lineTo(pRearTop.x, pRearTop.y);
+    ctx.moveTo(pRearTop.x, pRearTop.y);
+    ctx.lineTo(pFrontTop.x, pFrontTop.y);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(pDerailleurTension.x, pDerailleurTension.y);
-    ctx.lineTo(pFrontBottom.x, pFrontBottom.y);
+    ctx.moveTo(pFrontBottom.x, pFrontBottom.y);
+    ctx.lineTo(pDerailleurTension.x, pDerailleurTension.y);
     ctx.stroke();
 
     ctx.restore();
@@ -423,9 +420,9 @@ export class DrivetrainRenderer {
     const ctx = this.ctx;
     const rearRadius = (14 + (rearTeeth - 11) * 2.4) * scale;
 
-    const guideX = rx + 4 * scale;
+    const guideX = rx - 4 * scale;
     const guideY = ry + rearRadius + 14 * scale;
-    const tensionX = rx - 10 * scale;
+    const tensionX = rx + 10 * scale;
     const tensionY = ry + rearRadius + 36 * scale;
 
     ctx.save();
@@ -448,15 +445,15 @@ export class DrivetrainRenderer {
       // Pulley body
       ctx.fillStyle = '#111318';
       ctx.strokeStyle = '#00e5ff';
-      ctx.lineWidth = 1.2 * scale;
+      ctx.lineWidth = 1.5 * scale;
       ctx.beginPath();
-      ctx.arc(0, 0, 7 * scale, 0, Math.PI * 2);
+      ctx.arc(0, 0, 7.5 * scale, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      // Pulley rotating teeth
-      ctx.strokeStyle = '#00e5ff';
-      ctx.lineWidth = 1 * scale;
+      // Pulley Teeth
+      ctx.strokeStyle = '#3a4454';
+      ctx.lineWidth = 1.2 * scale;
       for (let t = 0; t < 8; t++) {
         const pAngle = (t / 8) * Math.PI * 2;
         ctx.beginPath();
@@ -499,19 +496,19 @@ export class DrivetrainRenderer {
     ctx.fill();
     ctx.stroke();
 
-    // Left label: Vorne 2-fach (Kettenblatt)
+    // Left label: Hinten 11-fach (Kassette)
     ctx.font = '9px system-ui, sans-serif';
     ctx.fillStyle = '#7a8296';
     ctx.textAlign = 'left';
-    ctx.fillText('VORNE (34T / 50T)', barX + 6, barY + 10);
+    ctx.fillText('HINTEN (11T - 30T)', barX + 6, barY + 10);
 
-    // Right label: Hinten 11-fach (Kassette)
+    // Right label: Vorne 2-fach (Kettenblatt)
     ctx.textAlign = 'right';
-    ctx.fillText('HINTEN (11T - 30T)', barX + barW - 6, barY + 10);
+    ctx.fillText('VORNE (34T / 50T)', barX + barW - 6, barY + 10);
 
-    // Sprocket slots on the RIGHT side
+    // Sprocket slots on the LEFT side (11T to 30T)
     const slotStep = (barW * 0.42) / (totalRear - 1);
-    const startSlotX = barX + barW * 0.52;
+    const startSlotX = barX + barW * 0.22;
 
     for (let r = 0; r < totalRear; r++) {
       const sx = startSlotX + r * slotStep;
@@ -523,18 +520,18 @@ export class DrivetrainRenderer {
       ctx.fill();
     }
 
-    // Front Chainring slots on the LEFT side
-    const f1X = barX + barW * 0.32;
-    const f2X = barX + barW * 0.36;
+    // Front Chainring slots on the RIGHT side
+    const f1X = barX + barW * 0.72;
+    const f2X = barX + barW * 0.76;
     const activeFrontX = frontIdx === 0 ? f1X : f2X;
     const activeRearX = startSlotX + rearIdx * slotStep;
 
-    // Connecting chainline between front and rear in indicator
+    // Connecting chainline between rear and front in indicator
     ctx.strokeStyle = crossChaining.color || '#00ffc8';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(activeFrontX, barY + barH / 2);
-    ctx.lineTo(activeRearX, barY + barH / 2);
+    ctx.moveTo(activeRearX, barY + barH / 2);
+    ctx.lineTo(activeFrontX, barY + barH / 2);
     ctx.stroke();
 
     ctx.fillStyle = frontIdx === 0 ? (crossChaining.color || '#00ffc8') : '#2d3345';
@@ -553,7 +550,7 @@ export class DrivetrainRenderer {
       ctx.fillStyle = badgeColor;
       ctx.font = 'bold 9px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(crossChaining.name.toUpperCase(), w * 0.44, barY - 4);
+      ctx.fillText(crossChaining.name.toUpperCase(), w * 0.58, barY - 4);
     }
 
     ctx.restore();
