@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { Drivetrain } from './src/drivetrain.js';
 import { DrivetrainRenderer } from './src/render/cassette.js';
+import { createChainPathGeometry, createDrivetrainGeometry } from './src/render/drivetrain-projection.js';
 
 const calls = {};
 const renderer = Object.create(DrivetrainRenderer.prototype);
@@ -25,8 +26,72 @@ assert.strictEqual(calls.chainrings[3], projection);
 assert.strictEqual(calls.chain[4], projection);
 assert.strictEqual(calls.derailleur[2], projection);
 assert.equal(projection.rxScale, 0.30);
+assert.ok(projection.ellipseRotation < 0);
 assert.equal(calls.cassette[0].length, 11);
 assert.equal(calls.chainrings[0].length, 2);
 assert.ok(calls.chain[0].rearTop && calls.chain[0].frontTop);
 assert.equal(calls.hud.length, 8);
+
+const geometry = createDrivetrainGeometry({
+  width: 1280,
+  height: 190,
+  scale: 1,
+  cassette: drivetrain.cassette,
+  chainrings: drivetrain.chainrings
+});
+const recordingContext = {
+  save() {},
+  restore() {},
+  beginPath() {},
+  closePath() {},
+  moveTo() {},
+  lineTo() {},
+  stroke() {},
+  fill() {},
+  ellipse() {},
+  translate() {},
+  rotate() {},
+  fillText() {},
+  createLinearGradient() { return { addColorStop() {} }; }
+};
+const cassetteRenderer = Object.create(DrivetrainRenderer.prototype);
+cassetteRenderer.ctx = recordingContext;
+assert.doesNotThrow(() => cassetteRenderer.draw3DCassette(
+  geometry.sprockets,
+  4,
+  0,
+  geometry.projection,
+  1
+));
+const chainPath = createChainPathGeometry({
+  sprocket: geometry.sprockets[4],
+  frontRing: geometry.frontRings[1],
+  projection: geometry.projection,
+  scale: 1
+});
+const ellipseRotations = [];
+const chainRenderer = Object.create(DrivetrainRenderer.prototype);
+chainRenderer.chainOffset = 0;
+chainRenderer.ctx = {
+  save() {},
+  restore() {},
+  beginPath() {},
+  moveTo() {},
+  lineTo() {},
+  stroke() {},
+  setLineDash() {},
+  ellipse(...args) { ellipseRotations.push(args[4]); }
+};
+chainRenderer.draw3DChain(
+  chainPath,
+  geometry.sprockets[4],
+  geometry.frontRings[1],
+  { level: 'optimal' },
+  geometry.projection,
+  1
+);
+assert.deepEqual(ellipseRotations, [
+  geometry.projection.ellipseRotation,
+  geometry.projection.ellipseRotation
+]);
 console.log('✓ Drivetrain renderer consumes one projection');

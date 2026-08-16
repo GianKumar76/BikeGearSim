@@ -1,28 +1,51 @@
 export const DISC_RX_SCALE = 0.30;
 export const DISC_RY_SCALE = 1;
 
-const rawDepth = { x: 6.4, y: 1 };
-const depthLength = Math.hypot(rawDepth.x, rawDepth.y);
+const unit = ({ x, y }) => {
+  const length = Math.hypot(x, y);
+  return { x: x / length, y: y / length };
+};
 
-export const DEPTH_VECTOR = Object.freeze({
-  x: rawDepth.x / depthLength,
-  y: rawDepth.y / depthLength
-});
+export const DEPTH_VECTOR = Object.freeze(unit({ x: 0.98, y: 0.20 }));
 
-const offsetDepth = (point, distance) => ({
-  x: point.x + DEPTH_VECTOR.x * distance,
-  y: point.y + DEPTH_VECTOR.y * distance
-});
+export function createCamera({ width, height, scale }) {
+  const longitudinalVector = {
+    x: (width * 0.52 / 180) * scale,
+    y: (-height * 0.06 / 180) * scale
+  };
+
+  return {
+    origin: { x: width * 0.22, y: height * 0.52 },
+    longitudinalVector,
+    verticalVector: { x: 0, y: scale },
+    axleVector: DEPTH_VECTOR,
+    ellipseRotation: Math.atan2(longitudinalVector.y, longitudinalVector.x)
+  };
+}
+
+export function projectPoint({ longitudinal, vertical, axle }, camera) {
+  return {
+    x: camera.origin.x
+      + longitudinal * camera.longitudinalVector.x
+      + vertical * camera.verticalVector.x
+      + axle * camera.axleVector.x,
+    y: camera.origin.y
+      + longitudinal * camera.longitudinalVector.y
+      + vertical * camera.verticalVector.y
+      + axle * camera.axleVector.y
+  };
+}
 
 export function createDrivetrainGeometry({ width, height, scale, cassette, chainrings }) {
-  const rearAnchor = { x: width * 0.24, y: height * 0.48 };
-  const frontAnchor = { x: width * 0.74, y: height * 0.42 };
+  const camera = createCamera({ width, height, scale });
+  const rearAnchor = projectPoint({ longitudinal: 0, vertical: 0, axle: 0 }, camera);
+  const frontAnchor = projectPoint({ longitudinal: 180, vertical: 0, axle: 0 }, camera);
   const cassetteSpacing = 6.48 * scale;
 
   const sprockets = cassette.map((teeth, index) => {
     const depth = (5 - index) * cassetteSpacing;
     return {
-      ...offsetDepth(rearAnchor, depth),
+      ...projectPoint({ longitudinal: 0, vertical: 0, axle: depth }, camera),
       r: (16 + (teeth - 11) * 2.3) * scale,
       teeth,
       index,
@@ -30,17 +53,17 @@ export function createDrivetrainGeometry({ width, height, scale, cassette, chain
     };
   });
 
-  const frontDepth = 6.5 * scale;
+  const frontDepth = 16 * scale;
   const frontRings = [
     {
-      ...offsetDepth(frontAnchor, -frontDepth),
+      ...projectPoint({ longitudinal: 180, vertical: 0, axle: -frontDepth }, camera),
       r: 34 * scale,
       teeth: chainrings[0],
       index: 0,
       depth: -frontDepth
     },
     {
-      ...offsetDepth(frontAnchor, frontDepth),
+      ...projectPoint({ longitudinal: 180, vertical: 0, axle: frontDepth }, camera),
       r: 48 * scale,
       teeth: chainrings[1],
       index: 1,
@@ -52,32 +75,42 @@ export function createDrivetrainGeometry({ width, height, scale, cassette, chain
     projection: {
       rxScale: DISC_RX_SCALE,
       ryScale: DISC_RY_SCALE,
-      depthVector: DEPTH_VECTOR
+      depthVector: camera.axleVector,
+      camera,
+      ellipseRotation: camera.ellipseRotation
     },
+    camera,
     rearAnchor,
     frontAnchor,
     frame: {
-      rearDropout: offsetDepth(rearAnchor, -30 * scale),
-      bottomBracket: frontAnchor,
-      seatCluster: {
-        x: frontAnchor.x - 35 * scale,
-        y: frontAnchor.y - 80 * scale
-      }
+      rearDropout: projectPoint({ longitudinal: 0, vertical: 0, axle: -30 * scale }, camera),
+      bottomBracket: projectPoint({ longitudinal: 180, vertical: 0, axle: 0 }, camera),
+      seatCluster: projectPoint({ longitudinal: 150, vertical: -80, axle: 0 }, camera)
     },
     sprockets,
     frontRings
   };
 }
 
-const toCircleSpace = (point, projection) => ({
-  x: point.x / projection.rxScale,
-  y: point.y / projection.ryScale
-});
+const toCircleSpace = (point, projection) => {
+  const cos = Math.cos(projection.ellipseRotation);
+  const sin = Math.sin(projection.ellipseRotation);
+  return {
+    x: (point.x * cos + point.y * sin) / projection.rxScale,
+    y: (-point.x * sin + point.y * cos) / projection.ryScale
+  };
+};
 
-const toScreenSpace = (point, projection) => ({
-  x: point.x * projection.rxScale,
-  y: point.y * projection.ryScale
-});
+const toScreenSpace = (point, projection) => {
+  const localX = point.x * projection.rxScale;
+  const localY = point.y * projection.ryScale;
+  const cos = Math.cos(projection.ellipseRotation);
+  const sin = Math.sin(projection.ellipseRotation);
+  return {
+    x: localX * cos - localY * sin,
+    y: localX * sin + localY * cos
+  };
+};
 
 function externalTangentPair(first, second, projection) {
   const a = toCircleSpace(first, projection);
@@ -108,10 +141,13 @@ function externalTangentPair(first, second, projection) {
   });
 }
 
-const ellipseAngle = (point, center, projection) => Math.atan2(
-  (point.y - center.y) / projection.ryScale,
-  (point.x - center.x) / projection.rxScale
-);
+const ellipseAngle = (point, center, projection) => {
+  const local = toCircleSpace({
+    x: point.x - center.x,
+    y: point.y - center.y
+  }, projection);
+  return Math.atan2(local.y, local.x);
+};
 
 export function createChainPathGeometry({ sprocket, frontRing, projection, scale }) {
   const tangents = externalTangentPair(sprocket, frontRing, projection);

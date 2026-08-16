@@ -1,5 +1,16 @@
 import { createChainPathGeometry, createDrivetrainGeometry } from './drivetrain-projection.js';
 
+const ellipsePoint = (center, radiusX, radiusY, rotation, angle) => {
+  const localX = Math.cos(angle) * radiusX;
+  const localY = Math.sin(angle) * radiusY;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return {
+    x: center.x + localX * cos - localY * sin,
+    y: center.y + localX * sin + localY * cos
+  };
+};
+
 /**
  * Drivetrain & Cassette 3D Perspective Canvas Renderer
  * Clear, spacious 3D isometric view:
@@ -136,7 +147,7 @@ export class DrivetrainRenderer {
    */
   draw3DCassette(sprockets, activeIndex, angle, projection, scale = 1) {
     const ctx = this.ctx;
-    const { rxScale, ryScale, depthVector } = projection;
+    const { rxScale, ryScale, depthVector, ellipseRotation } = projection;
     const backToFront = [...sprockets].sort((a, b) => a.depth - b.depth);
     const rearMost = backToFront[0];
     const frontMost = backToFront.at(-1);
@@ -168,21 +179,22 @@ export class DrivetrainRenderer {
         x: sprocket.x + depthVector.x * thickness,
         y: sprocket.y + depthVector.y * thickness
       };
+      const lowerFront = ellipsePoint(sprocket, rX, rY, ellipseRotation, Math.PI / 2);
 
       ctx.save();
       ctx.fillStyle = isActive ? '#142028' : '#10131a';
-      ctx.strokeStyle = isActive ? '#00e5ff' : '#222838';
+      ctx.strokeStyle = isActive ? '#00e5ff' : '#3c4a62';
       ctx.lineWidth = 1.0 * scale;
       ctx.beginPath();
-      ctx.ellipse(extrudedCenter.x, extrudedCenter.y, rX, rY, 0, -Math.PI / 2, Math.PI / 2, false);
-      ctx.lineTo(sprocket.x, sprocket.y + rY);
-      ctx.ellipse(sprocket.x, sprocket.y, rX, rY, 0, Math.PI / 2, -Math.PI / 2, true);
+      ctx.ellipse(extrudedCenter.x, extrudedCenter.y, rX, rY, ellipseRotation, -Math.PI / 2, Math.PI / 2, false);
+      ctx.lineTo(lowerFront.x, lowerFront.y);
+      ctx.ellipse(sprocket.x, sprocket.y, rX, rY, ellipseRotation, Math.PI / 2, -Math.PI / 2, true);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.ellipse(sprocket.x, sprocket.y, rX, rY, 0, 0, Math.PI * 2);
+      ctx.ellipse(sprocket.x, sprocket.y, rX, rY, ellipseRotation, 0, Math.PI * 2);
       if (isActive) {
         ctx.fillStyle = 'rgba(0, 255, 200, 0.18)';
         ctx.strokeStyle = '#00ffc8';
@@ -204,6 +216,7 @@ export class DrivetrainRenderer {
 
       ctx.save();
       ctx.translate(sprocket.x, sprocket.y);
+      ctx.rotate(ellipseRotation);
       const toothCount = Math.min(sprocket.teeth, 16);
       ctx.strokeStyle = isActive ? '#00ffc8' : '#45536e';
       ctx.lineWidth = 1.2 * scale;
@@ -254,7 +267,13 @@ export class DrivetrainRenderer {
       ctx.fillText(
         `${sprocket.teeth}`,
         sprocket.x,
-        sprocket.y - sprocket.r * ryScale - 2 * scale
+        ellipsePoint(
+          sprocket,
+          sprocket.r * rxScale,
+          sprocket.r * ryScale,
+          ellipseRotation,
+          -Math.PI / 2
+        ).y - 2 * scale
       );
     }
 
@@ -269,7 +288,7 @@ export class DrivetrainRenderer {
       frontMost.y + depthVector.y * 4 * scale,
       6 * rxScale * scale,
       6 * ryScale * scale,
-      0,
+      ellipseRotation,
       0,
       Math.PI * 2
     );
@@ -283,7 +302,7 @@ export class DrivetrainRenderer {
    */
   draw3DChainrings(frontRings, activeIndex, angle, projection, scale = 1) {
     const ctx = this.ctx;
-    const { rxScale, ryScale, depthVector } = projection;
+    const { rxScale, ryScale, depthVector, ellipseRotation } = projection;
     const [smallCoord, bigCoord] = [...frontRings].sort((a, b) => a.depth - b.depth);
 
     // 1. Draw Inner Small Ring (34T)
@@ -300,14 +319,15 @@ export class DrivetrainRenderer {
         x: cr.x + depthVector.x * thickness,
         y: cr.y + depthVector.y * thickness
       };
+      const lowerFront = ellipsePoint(cr, rX, rY, ellipseRotation, Math.PI / 2);
       ctx.fillStyle = isActive ? '#142028' : '#10131a';
-      ctx.strokeStyle = isActive ? '#00e5ff' : '#222838';
+      ctx.strokeStyle = isActive ? '#00e5ff' : '#3c4a62';
       ctx.lineWidth = 1.0 * scale;
 
       ctx.beginPath();
-      ctx.ellipse(extrudedCenter.x, extrudedCenter.y, rX, rY, 0, -Math.PI / 2, Math.PI / 2, false);
-      ctx.lineTo(cr.x, cr.y + rY);
-      ctx.ellipse(cr.x, cr.y, rX, rY, 0, Math.PI / 2, -Math.PI / 2, true);
+      ctx.ellipse(extrudedCenter.x, extrudedCenter.y, rX, rY, ellipseRotation, -Math.PI / 2, Math.PI / 2, false);
+      ctx.lineTo(lowerFront.x, lowerFront.y);
+      ctx.ellipse(cr.x, cr.y, rX, rY, ellipseRotation, Math.PI / 2, -Math.PI / 2, true);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
@@ -318,19 +338,20 @@ export class DrivetrainRenderer {
       grad.addColorStop(0.5, '#121620');
       grad.addColorStop(1, '#0a0d13');
       ctx.fillStyle = grad;
-      ctx.strokeStyle = isActive ? '#00ffc8' : '#2a3344';
-      ctx.lineWidth = (isActive ? 2.2 : 1.2) * scale;
+      ctx.strokeStyle = isActive ? '#00ffc8' : '#60718e';
+      ctx.lineWidth = (isActive ? 2.2 : 1.5) * scale;
 
       ctx.beginPath();
-      ctx.ellipse(cr.x, cr.y, rX, rY, 0, 0, Math.PI * 2);
+      ctx.ellipse(cr.x, cr.y, rX, rY, ellipseRotation, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
       // Small Ring Teeth
       ctx.save();
       ctx.translate(cr.x, cr.y);
+      ctx.rotate(ellipseRotation);
       const toothCount = 18;
-      ctx.strokeStyle = isActive ? '#00ffc8' : '#3a465c';
+      ctx.strokeStyle = isActive ? '#00ffc8' : '#566783';
       ctx.lineWidth = 1.2 * scale;
       for (let t = 0; t < toothCount; t++) {
         const tAngle = (t / toothCount) * Math.PI * 2 + angle;
@@ -362,14 +383,15 @@ export class DrivetrainRenderer {
         x: cr.x + depthVector.x * thickness,
         y: cr.y + depthVector.y * thickness
       };
+      const lowerFront = ellipsePoint(cr, rX, rY, ellipseRotation, Math.PI / 2);
       ctx.fillStyle = isActive ? '#14242e' : '#121620';
       ctx.strokeStyle = isActive ? '#00e5ff' : '#252e40';
       ctx.lineWidth = 1.2 * scale;
 
       ctx.beginPath();
-      ctx.ellipse(extrudedCenter.x, extrudedCenter.y, rX, rY, 0, -Math.PI / 2, Math.PI / 2, false);
-      ctx.lineTo(cr.x, cr.y + rY);
-      ctx.ellipse(cr.x, cr.y, rX, rY, 0, Math.PI / 2, -Math.PI / 2, true);
+      ctx.ellipse(extrudedCenter.x, extrudedCenter.y, rX, rY, ellipseRotation, -Math.PI / 2, Math.PI / 2, false);
+      ctx.lineTo(lowerFront.x, lowerFront.y);
+      ctx.ellipse(cr.x, cr.y, rX, rY, ellipseRotation, Math.PI / 2, -Math.PI / 2, true);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
@@ -384,13 +406,14 @@ export class DrivetrainRenderer {
       ctx.lineWidth = (isActive ? 2.4 : 1.4) * scale;
 
       ctx.beginPath();
-      ctx.ellipse(cr.x, cr.y, rX, rY, 0, 0, Math.PI * 2);
+      ctx.ellipse(cr.x, cr.y, rX, rY, ellipseRotation, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
       // 50T Outer Teeth
       ctx.save();
       ctx.translate(cr.x, cr.y);
+      ctx.rotate(ellipseRotation);
       const toothCount = 22;
       ctx.strokeStyle = isActive ? '#00ffc8' : '#455470';
       ctx.lineWidth = 1.4 * scale;
@@ -432,11 +455,15 @@ export class DrivetrainRenderer {
     });
     for (const ring of labelOrder) {
       const isActive = ring.index === activeIndex;
-      ctx.fillStyle = isActive ? '#ffffff' : '#6b768d';
-      ctx.font = `${isActive ? 'bold' : 'normal'} ${Math.round((isActive ? 10 : 8) * scale)}px system-ui, sans-serif`;
+      ctx.fillStyle = isActive ? '#ffffff' : '#a9b5c9';
+      ctx.font = `${isActive ? 'bold' : 'normal'} ${Math.round((isActive ? 10 : 9) * scale)}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      ctx.fillText(`${ring.teeth}`, ring.x, ring.y - ring.r * ryScale - 2 * scale);
+      ctx.fillText(
+        `${ring.teeth}`,
+        ring.x,
+        ellipsePoint(ring, ring.r * rxScale, ring.r * ryScale, ellipseRotation, -Math.PI / 2).y - 2 * scale
+      );
     }
 
     // 3. Shimano Hollowtech II Crankarm & Pedal
@@ -445,6 +472,7 @@ export class DrivetrainRenderer {
       bigCoord.x + depthVector.x * 3 * scale,
       bigCoord.y + depthVector.y * 3 * scale
     );
+    ctx.rotate(ellipseRotation);
 
     const armLen = 54 * scale;
     const armCos = Math.cos(angle);
@@ -498,7 +526,7 @@ export class DrivetrainRenderer {
    */
   draw3DChain(chainPath, sprocket, chainring, crossChaining, projection, scale = 1) {
     const ctx = this.ctx;
-    const { rxScale, ryScale } = projection;
+    const { rxScale, ryScale, ellipseRotation } = projection;
     const {
       rearTop,
       frontTop,
@@ -547,7 +575,7 @@ export class DrivetrainRenderer {
       chainring.y,
       chainring.r * rxScale,
       chainring.r * ryScale,
-      0,
+      ellipseRotation,
       frontTopAngle,
       frontBottomAngle,
       false
@@ -569,7 +597,7 @@ export class DrivetrainRenderer {
       sprocket.y,
       sprocket.r * rxScale,
       sprocket.r * ryScale,
-      0,
+      ellipseRotation,
       rearBottomAngle,
       rearTopAngle,
       false
@@ -601,7 +629,7 @@ export class DrivetrainRenderer {
    */
   draw3DDerailleur(chainPath, pulleyAngle, projection, scale = 1) {
     const ctx = this.ctx;
-    const { rxScale, ryScale, depthVector } = projection;
+    const { rxScale, ryScale, depthVector, ellipseRotation } = projection;
     const { rearBottom, guidePulley, tensionPulley } = chainPath;
     const guideX = guidePulley.x;
     const guideY = guidePulley.y;
@@ -626,6 +654,7 @@ export class DrivetrainRenderer {
     const drawPulley = (px, py, angle) => {
       ctx.save();
       ctx.translate(px, py);
+      ctx.rotate(ellipseRotation);
 
       ctx.fillStyle = '#0f1218';
       ctx.strokeStyle = '#00e5ff';
