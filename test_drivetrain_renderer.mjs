@@ -25,7 +25,7 @@ const projection = calls.cassette[3];
 assert.strictEqual(calls.chainrings[3], projection);
 assert.strictEqual(calls.chain[4], projection);
 assert.strictEqual(calls.derailleur[2], projection);
-assert.equal(projection.rxScale, 0.30);
+assert.equal(projection.rxScale, 0.38);
 assert.ok(projection.ellipseRotation < 0);
 assert.equal(calls.cassette[0].length, 11);
 assert.equal(calls.chainrings[0].length, 2);
@@ -39,6 +39,7 @@ const geometry = createDrivetrainGeometry({
   cassette: drivetrain.cassette,
   chainrings: drivetrain.chainrings
 });
+const cassetteRotations = [];
 const recordingContext = {
   save() {},
   restore() {},
@@ -50,7 +51,7 @@ const recordingContext = {
   fill() {},
   ellipse() {},
   translate() {},
-  rotate() {},
+  rotate(angle) { cassetteRotations.push(angle); },
   fillText() {},
   createLinearGradient() { return { addColorStop() {} }; }
 };
@@ -63,6 +64,8 @@ assert.doesNotThrow(() => cassetteRenderer.draw3DCassette(
   geometry.projection,
   1
 ));
+assert.ok(cassetteRotations.every((angle) => angle === geometry.projection.ellipseRotation));
+assert.ok(Math.abs(geometry.projection.ellipseRotation) > 0.09);
 const chainPath = createChainPathGeometry({
   sprocket: geometry.sprockets[4],
   frontRing: geometry.frontRings[1],
