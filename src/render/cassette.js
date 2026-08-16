@@ -1,9 +1,9 @@
 /**
- * Unified 3D Perspective Drivetrain Renderer (Pure 3D Mathematics)
- * Camera: Positioned behind the rear hub looking forward-up along the chainstay
- * Foreground (Lower-Left): 11-Speed Cassette (11T - 30T)
- * Background (Upper-Center/Right): 2x Chainrings (34T / 50T) & Shimano Crankset
- * Mathematically consistent 3D projection with vanishing point, perspective foreshortening, and 3D chainline
+ * Drivetrain & Cassette 3D Perspective Canvas Renderer
+ * Clear, spacious 3D isometric view:
+ * Left (Foreground): 11-Speed Cassette (11T - 30T) with clear stepped cogs
+ * Right (Background): 2x Front Chainrings (34T / 50T) with Shimano Crankset
+ * Broad 3D chainline spanning across the panel for crystal-clear gear visibility
  */
 
 export class DrivetrainRenderer {
@@ -26,30 +26,6 @@ export class DrivetrainRenderer {
       this.ctx.resetTransform();
       this.ctx.scale(dpr, dpr);
     }
-  }
-
-  /**
-   * 3D Perspective Projection Function
-   * Maps 3D world coordinates (x: lateral mm, y: longitudinal mm, z: vertical mm)
-   * to 2D screen coordinates (sx, sy) with perspective scale.
-   */
-  project(x, y, z, centerX, centerY, scale = 1) {
-    // Camera settings:
-    // camX: slightly to the right of cassette center for clear chainline visibility
-    // camY: behind the rear axle (negative Y)
-    // camZ: slightly above the axle looking down-forward
-    const camX = 14;
-    const camY = -280;
-    const camZ = 20;
-
-    const fov = 380; // Focal length
-    const depth = (y - camY);
-    const pScale = (fov / depth) * scale;
-
-    const sx = centerX + (x - camX) * pScale;
-    const sy = centerY - (z - camZ) * pScale;
-
-    return { sx, sy, pScale, depth };
   }
 
   render(drivetrainState, cadenceRpm, speedKmh, dtSec) {
@@ -77,171 +53,166 @@ export class DrivetrainRenderer {
     this.chainOffset += chainLinearSpeedMs * 24 * dtSec;
     this.pulleyAngle += chainLinearSpeedMs * 35 * dtSec;
 
-    const scale = Math.max(0.65, Math.min(1.15, h / 200));
+    const scale = Math.max(0.65, Math.min(1.15, h / 195));
 
-    // Screen Center Anchor for 3D View:
-    // Cassette (y=0) appears in the lower-left; Chainrings (y=360) recede up and to the center/right
-    const centerX = w * 0.32;
-    const centerY = h * 0.58;
+    // Clear 3D Perspective Anchors:
+    // Rear Cassette: Foreground-Left
+    const baseRearX = w * 0.24;
+    const baseRearY = h * 0.48;
 
-    // 1. Draw 3D Bike Frame (Chainstay & Seatstay in consistent 3D)
-    this.draw3DFrame(centerX, centerY, scale);
+    // Front Chainrings: Background-Right (Elevated slightly to match bike perspective)
+    const baseFrontX = w * 0.74;
+    const baseFrontY = h * 0.42;
 
-    // 2. Draw 11-Speed Cassette in 3D (at y = 0, stepped along x)
-    const sprocketCoords = this.draw3DCassette(centerX, centerY, cassette, rearIndex, this.cassetteAngle, scale);
+    // Natural 3D Elliptical Ratio (clear disc visibility):
+    const rxScale = 0.46; // Natural 3D disc width
+    const ryScale = 0.96; // Full vertical diameter
 
-    // 3. Draw Front Crankset & Chainrings in 3D (at y = 360, stepped along x)
-    const chainringCoords = this.draw3DChainrings(centerX, centerY, chainrings, frontIndex, this.crankAngle, scale);
+    // 1. Draw 3D Bike Frame (Chainstay & Seatstay in 3D)
+    this.drawPerspectiveFrame(baseRearX, baseRearY, baseFrontX, baseFrontY, scale);
 
-    // 4. Draw 3D Chain connecting active rear cog (3D) to active front ring (3D)
-    this.draw3DChain(centerX, centerY, sprocketCoords[rearIndex], chainringCoords[frontIndex], crossChaining, scale);
+    // 2. Draw 11-Speed Cassette in 3D (Stepped from 30T on left to 11T on right)
+    const sprocketCoords = this.draw3DCassette(baseRearX, baseRearY, cassette, rearIndex, this.cassetteAngle, rxScale, ryScale, scale);
 
-    // 5. Draw 3D Rear Derailleur shifting directly under active rear cog
-    this.draw3DDerailleur(centerX, centerY, sprocketCoords[rearIndex], this.pulleyAngle, scale);
+    // 3. Draw Front Chainrings in 3D (34T inner, 50T outer)
+    const chainringCoords = this.draw3DChainrings(baseFrontX, baseFrontY, chainrings, frontIndex, this.crankAngle, rxScale, ryScale, scale);
+
+    // 4. Draw 3D Chain connecting active rear sprocket to active front ring
+    this.draw3DChain(sprocketCoords[rearIndex], chainringCoords[frontIndex], rearTeeth, frontTeeth, crossChaining, rxScale, ryScale, scale);
+
+    // 5. Draw 3D Rear Derailleur shifting under the active rear cog
+    this.draw3DDerailleur(sprocketCoords[rearIndex], rearTeeth, this.pulleyAngle, rxScale, ryScale, scale);
 
     // 6. Draw 3D Perspective HUD at the bottom
     this.drawPerspectiveHUD(w, h, frontIndex, rearIndex, chainrings, cassette, crossChaining, scale);
   }
 
-  draw3DFrame(centerX, centerY, scale) {
+  drawPerspectiveFrame(rx, ry, fx, fy, scale = 1) {
     const ctx = this.ctx;
     ctx.save();
     ctx.strokeStyle = '#181d28';
+    ctx.lineWidth = 11 * scale;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // 3D Points:
-    // Rear Dropout: (x=24, y=0, z=0)
-    // Bottom Bracket: (x=4, y=360, z=0)
-    // Seat Cluster: (x=0, y=260, z=220)
-    const pDropout = this.project(24, 0, 0, centerX, centerY, scale);
-    const pBB = this.project(4, 360, 0, centerX, centerY, scale);
-    const pSeat = this.project(0, 260, 220, centerX, centerY, scale);
-
-    // Chainstay
-    ctx.lineWidth = 10 * pDropout.pScale;
+    // 3D Chainstay from Rear Dropout to Front Bottom Bracket
     ctx.beginPath();
-    ctx.moveTo(pDropout.sx, pDropout.sy);
-    ctx.lineTo(pBB.sx, pBB.sy);
+    ctx.moveTo(rx - 30 * scale, ry);
+    ctx.lineTo(fx, fy);
     ctx.stroke();
 
-    // Seat Tube
-    ctx.lineWidth = 8 * pBB.pScale;
+    // 3D Seat Tube going up-left from BB
+    ctx.lineWidth = 8 * scale;
     ctx.beginPath();
-    ctx.moveTo(pBB.sx, pBB.sy);
-    ctx.lineTo(pSeat.sx, pSeat.sy);
+    ctx.moveTo(fx, fy);
+    ctx.lineTo(fx - 35 * scale, fy - 80 * scale);
     ctx.stroke();
 
-    // Seatstay
-    ctx.lineWidth = 6 * pDropout.pScale;
+    // 3D Seatstay from Rear Dropout to Seat cluster
+    ctx.lineWidth = 6 * scale;
     ctx.beginPath();
-    ctx.moveTo(pDropout.sx, pDropout.sy);
-    ctx.lineTo(pSeat.sx, pSeat.sy);
+    ctx.moveTo(rx - 30 * scale, ry);
+    ctx.lineTo(fx - 35 * scale, fy - 80 * scale);
     ctx.stroke();
 
-    // Dropout metal highlight
+    // Dropout clamp highlight
     ctx.fillStyle = '#2d3546';
     ctx.beginPath();
-    ctx.arc(pDropout.sx, pDropout.sy, 8 * pDropout.pScale, 0, Math.PI * 2);
+    ctx.arc(rx - 30 * scale, ry, 9 * scale, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
   }
 
   /**
-   * Draw the 11-Speed Cassette in true 3D (Positioned at y=0, spaced along x-axis from inner 30T to outer 11T)
+   * Render the 11-Speed Cassette with 3D Depth Stacking
+   * From largest (30T, inner left) to smallest (11T, outer right, closest to viewer)
    */
-  draw3DCassette(centerX, centerY, cassette, activeIndex, angle, scale) {
+  draw3DCassette(baseX, baseY, cassette, activeIndex, angle, rxScale, ryScale, scale = 1) {
     const ctx = this.ctx;
     const numSprockets = cassette.length; // 11
     const sprocketCoords = [];
 
-    // Lateral mm positions on freehub body:
-    // i = 0 (11T): x = +18mm (outermost, closest to dropout/camera)
-    // i = 10 (30T): x = -20mm (innermost, closest to wheel spokes)
+    // Lateral 3D depth step per sprocket
+    const stepDx = 6.4 * scale;
+    const stepDy = 1.0 * scale;
+
+    // Calculate 3D positions for all 11 sprockets
     for (let i = 0; i < numSprockets; i++) {
       const teeth = cassette[i];
-      // Radius in mm: 11T = 23mm, 30T = 62mm
-      const radiusMm = 20 + (teeth - 11) * 2.2;
-      const xMm = 18 - i * 3.8;
-      const yMm = 0;
-
-      const pCenter = this.project(xMm, yMm, 0, centerX, centerY, scale);
-      sprocketCoords.push({
-        xMm,
-        yMm,
-        radiusMm,
-        teeth,
-        index: i,
-        pCenter
-      });
+      const r = (16 + (teeth - 11) * 2.3) * scale;
+      // i = 0 (11T) is closest to viewer/right; i = 10 (30T) is furthest/left
+      const x = baseX + (5 - i) * stepDx;
+      const y = baseY + (5 - i) * stepDy;
+      sprocketCoords.push({ x, y, r, teeth, index: i });
     }
 
-    // 1. Draw Freehub Cylinder
-    const pInnerHub = this.project(-24, 0, 0, centerX, centerY, scale);
-    const pOuterHub = this.project(22, 0, 0, centerX, centerY, scale);
+    // 1. Draw Cassette Freehub Body Cylinder
+    const innerX = sprocketCoords[numSprockets - 1].x - 6 * scale;
+    const outerX = sprocketCoords[0].x + 6 * scale;
     ctx.save();
     ctx.fillStyle = '#0a0d14';
     ctx.strokeStyle = '#222838';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.roundRect(pInnerHub.sx, pInnerHub.sy - 8 * pInnerHub.pScale, pOuterHub.sx - pInnerHub.sx, 16 * pInnerHub.pScale, 3);
+    ctx.roundRect(innerX, baseY - 8 * scale, outerX - innerX, 16 * scale, 3);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
 
-    // 2. Draw 11 Sprockets (From innermost 30T back to outermost 11T front)
+    // 2. Draw 11 Sprockets (from back/inner 30T to front/outer 11T)
     for (let i = numSprockets - 1; i >= 0; i--) {
       const sp = sprocketCoords[i];
       const isActive = (i === activeIndex);
-
-      // Project top, bottom, front, back points of the 3D circle to get exact perspective ellipse
-      const pTop = this.project(sp.xMm, sp.yMm, sp.radiusMm, centerX, centerY, scale);
-      const pBottom = this.project(sp.xMm, sp.yMm, -sp.radiusMm, centerX, centerY, scale);
-      const pFront = this.project(sp.xMm, sp.yMm + sp.radiusMm * 0.28, 0, centerX, centerY, scale);
-      const pBack = this.project(sp.xMm, sp.yMm - sp.radiusMm * 0.28, 0, centerX, centerY, scale);
-
-      const rY = (pBottom.sy - pTop.sy) / 2;
-      const rX = Math.abs(pFront.sx - pBack.sx) / 2;
-      const cX = sp.pCenter.sx;
-      const cY = sp.pCenter.sy;
+      const rX = sp.r * rxScale;
+      const rY = sp.r * ryScale;
 
       ctx.save();
 
       // Extruded 3D Sprocket Thickness
-      const thickness = 2.0 * sp.pCenter.pScale;
+      const thickness = 2.2 * scale;
       ctx.fillStyle = isActive ? '#142028' : '#10131a';
       ctx.strokeStyle = isActive ? '#00e5ff' : '#222838';
-      ctx.lineWidth = 1.0;
+      ctx.lineWidth = 1.0 * scale;
 
       ctx.beginPath();
-      ctx.ellipse(cX + thickness, cY, rX, rY, 0, -Math.PI / 2, Math.PI / 2, false);
-      ctx.lineTo(cX, cY + rY);
-      ctx.ellipse(cX, cY, rX, rY, 0, Math.PI / 2, -Math.PI / 2, true);
+      ctx.ellipse(sp.x + thickness, sp.y, rX, rY, 0, -Math.PI / 2, Math.PI / 2, false);
+      ctx.lineTo(sp.x, sp.y + rY);
+      ctx.ellipse(sp.x, sp.y, rX, rY, 0, Math.PI / 2, -Math.PI / 2, true);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
-      // Front Face
-      const grad = ctx.createLinearGradient(cX - rX, cY - rY, cX + rX, cY + rY);
-      grad.addColorStop(0, isActive ? '#1e3340' : '#222a3a');
-      grad.addColorStop(0.5, '#141822');
-      grad.addColorStop(1, '#0c0f16');
-      ctx.fillStyle = grad;
-      ctx.strokeStyle = isActive ? '#00ffc8' : (i % 2 === 0 ? '#343f54' : '#283142');
-      ctx.lineWidth = (isActive ? 2.2 : 1.2);
-
+      // Front Face Ellipse
       ctx.beginPath();
-      ctx.ellipse(cX, cY, rX, rY, 0, 0, Math.PI * 2);
+      ctx.ellipse(sp.x, sp.y, rX, rY, 0, 0, Math.PI * 2);
+
+      if (isActive) {
+        ctx.fillStyle = 'rgba(0, 255, 200, 0.18)';
+        ctx.strokeStyle = '#00ffc8';
+        ctx.lineWidth = 2.8 * scale;
+        ctx.shadowColor = '#00ffc8';
+        ctx.shadowBlur = 10 * scale;
+      } else {
+        const grad = ctx.createLinearGradient(sp.x - rX, sp.y - rY, sp.x + rX, sp.y + rY);
+        grad.addColorStop(0, '#202838');
+        grad.addColorStop(0.5, '#141822');
+        grad.addColorStop(1, '#0c0f16');
+        ctx.fillStyle = grad;
+        ctx.strokeStyle = (i % 2 === 0) ? '#343f54' : '#283142';
+        ctx.lineWidth = 1.2 * scale;
+        ctx.shadowBlur = 0;
+      }
       ctx.fill();
       ctx.stroke();
+      ctx.shadowBlur = 0;
 
       // 3D Sprocket Teeth
       ctx.save();
-      ctx.translate(cX, cY);
+      ctx.translate(sp.x, sp.y);
       const toothCount = Math.min(sp.teeth, 16);
       ctx.strokeStyle = isActive ? '#00ffc8' : '#45536e';
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = 1.2 * scale;
 
       for (let t = 0; t < toothCount; t++) {
         const tAngle = (t / toothCount) * Math.PI * 2 + angle;
@@ -256,116 +227,185 @@ export class DrivetrainRenderer {
       }
 
       // Cutout windows on larger sprockets
-      if (sp.radiusMm > 36) {
+      if (sp.r > 24 * scale) {
         ctx.fillStyle = '#080a0f';
         ctx.strokeStyle = isActive ? 'rgba(0, 255, 200, 0.4)' : '#181e2b';
-        ctx.lineWidth = 0.8;
+        ctx.lineWidth = 0.8 * scale;
         for (let w = 0; w < 3; w++) {
           const wAngle = (w * Math.PI * 2 / 3) + angle * 0.5;
           const wx = Math.cos(wAngle) * (rX * 0.52);
           const wy = Math.sin(wAngle) * (rY * 0.52);
           ctx.beginPath();
-          ctx.ellipse(wx, wy, 2.5, 4.0, 0, 0, Math.PI * 2);
+          ctx.ellipse(wx, wy, 2.8 * scale, 4.0 * scale, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
         }
       }
+
       ctx.restore();
 
-      // Tooth count label
+      // Sprocket Tooth-Count Engraving tag on top rim
       ctx.fillStyle = isActive ? '#ffffff' : '#6b768d';
-      ctx.font = `${isActive ? 'bold' : 'normal'} ${Math.round((isActive ? 10 : 8) * sp.pCenter.pScale)}px system-ui, sans-serif`;
+      ctx.font = `${isActive ? 'bold' : 'normal'} ${Math.round((isActive ? 10 : 8) * scale)}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      ctx.fillText(`${sp.teeth}`, cX, cY - rY - 2);
+      ctx.fillText(`${sp.teeth}`, sp.x, sp.y - rY - 2 * scale);
 
       ctx.restore();
     }
+
+    // 3. Front Lockring on 11T outer cog
+    const lockX = sprocketCoords[0].x + 4 * scale;
+    const lockY = sprocketCoords[0].y;
+    ctx.save();
+    ctx.fillStyle = '#090b10';
+    ctx.strokeStyle = '#4a5568';
+    ctx.lineWidth = 1.2 * scale;
+    ctx.beginPath();
+    ctx.ellipse(lockX, lockY, 6 * rxScale * scale, 6 * ryScale * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
 
     return sprocketCoords;
   }
 
   /**
-   * Draw the 2 Front Chainrings & Crankset in true 3D (Positioned at y = 360mm, background)
+   * Render the 2 Front Chainrings (34T & 50T) with Crankarm in clean 3D Perspective
    */
-  draw3DChainrings(centerX, centerY, chainrings, activeIndex, angle, scale) {
+  draw3DChainrings(baseX, baseY, chainrings, activeIndex, angle, rxScale, ryScale, scale = 1) {
     const ctx = this.ctx;
     const chainringCoords = [];
 
-    // Chainrings in 3D:
-    // Small ring (34T): x = -1mm, y = 360mm, radiusMm = 70mm
-    // Big ring (50T): x = +8mm, y = 360mm, radiusMm = 104mm
+    // Inner small ring (34T) is offset left/back in 3D space
+    const rSmall = 34 * scale;
     const smallCoord = {
-      xMm: -1,
-      yMm: 360,
-      radiusMm: 70,
+      x: baseX - 8 * scale,
+      y: baseY - 1 * scale,
+      r: rSmall,
       teeth: chainrings[0],
-      index: 0,
-      pCenter: this.project(-1, 360, 0, centerX, centerY, scale)
+      index: 0
     };
 
+    // Outer big ring (50T) is offset right/front in 3D space (closer to viewer)
+    const rBig = 48 * scale;
     const bigCoord = {
-      xMm: 8,
-      yMm: 360,
-      radiusMm: 104,
+      x: baseX + 4 * scale,
+      y: baseY + 1 * scale,
+      r: rBig,
       teeth: chainrings[1],
-      index: 1,
-      pCenter: this.project(8, 360, 0, centerX, centerY, scale)
+      index: 1
     };
 
     chainringCoords.push(smallCoord, bigCoord);
 
-    // Draw from inner (34T) to outer (50T)
-    for (let i = 0; i < 2; i++) {
-      const cr = chainringCoords[i];
-      const isActive = (i === activeIndex);
-
-      const pTop = this.project(cr.xMm, cr.yMm, cr.radiusMm, centerX, centerY, scale);
-      const pBottom = this.project(cr.xMm, cr.yMm, -cr.radiusMm, centerX, centerY, scale);
-      const pFront = this.project(cr.xMm, cr.yMm + cr.radiusMm * 0.28, 0, centerX, centerY, scale);
-      const pBack = this.project(cr.xMm, cr.yMm - cr.radiusMm * 0.28, 0, centerX, centerY, scale);
-
-      const rY = (pBottom.sy - pTop.sy) / 2;
-      const rX = Math.abs(pFront.sx - pBack.sx) / 2;
-      const cX = cr.pCenter.sx;
-      const cY = cr.pCenter.sy;
+    // 1. Draw Inner Small Ring (34T)
+    {
+      const cr = smallCoord;
+      const isActive = (activeIndex === 0);
+      const rX = cr.r * rxScale;
+      const rY = cr.r * ryScale;
 
       ctx.save();
-
       // 3D Rim Bevel
-      const thickness = 2.0 * cr.pCenter.pScale;
-      ctx.fillStyle = isActive ? '#14242e' : '#10131a';
+      const thickness = 2.2 * scale;
+      ctx.fillStyle = isActive ? '#142028' : '#10131a';
       ctx.strokeStyle = isActive ? '#00e5ff' : '#222838';
-      ctx.lineWidth = 1.0;
+      ctx.lineWidth = 1.0 * scale;
 
       ctx.beginPath();
-      ctx.ellipse(cX + thickness, cY, rX, rY, 0, -Math.PI / 2, Math.PI / 2, false);
-      ctx.lineTo(cX, cY + rY);
-      ctx.ellipse(cX, cY, rX, rY, 0, Math.PI / 2, -Math.PI / 2, true);
+      ctx.ellipse(cr.x + thickness, cr.y, rX, rY, 0, -Math.PI / 2, Math.PI / 2, false);
+      ctx.lineTo(cr.x, cr.y + rY);
+      ctx.ellipse(cr.x, cr.y, rX, rY, 0, Math.PI / 2, -Math.PI / 2, true);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
       // Front Face
-      const grad = ctx.createLinearGradient(cX - rX, cY - rY, cX + rX, cY + rY);
-      grad.addColorStop(0, isActive ? '#1e3340' : '#222a3a');
+      const grad = ctx.createLinearGradient(cr.x - rX, cr.y - rY, cr.x + rX, cr.y + rY);
+      grad.addColorStop(0, isActive ? '#1a2c38' : '#1e2534');
+      grad.addColorStop(0.5, '#121620');
+      grad.addColorStop(1, '#0a0d13');
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = isActive ? '#00ffc8' : '#2a3344';
+      ctx.lineWidth = (isActive ? 2.2 : 1.2) * scale;
+
+      ctx.beginPath();
+      ctx.ellipse(cr.x, cr.y, rX, rY, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Small Ring Teeth
+      ctx.save();
+      ctx.translate(cr.x, cr.y);
+      const toothCount = 18;
+      ctx.strokeStyle = isActive ? '#00ffc8' : '#3a465c';
+      ctx.lineWidth = 1.2 * scale;
+      for (let t = 0; t < toothCount; t++) {
+        const tAngle = (t / toothCount) * Math.PI * 2 + angle;
+        const tx1 = Math.cos(tAngle) * (rX * 0.88);
+        const ty1 = Math.sin(tAngle) * (rY * 0.88);
+        const tx2 = Math.cos(tAngle + 0.08) * (rX * 1.08);
+        const ty2 = Math.sin(tAngle + 0.08) * (rY * 1.08);
+        ctx.beginPath();
+        ctx.moveTo(tx1, ty1);
+        ctx.lineTo(tx2, ty2);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Label on top
+      ctx.fillStyle = isActive ? '#ffffff' : '#6b768d';
+      ctx.font = `${isActive ? 'bold' : 'normal'} ${Math.round((isActive ? 10 : 8) * scale)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('34', cr.x, cr.y - rY - 2 * scale);
+
+      ctx.restore();
+    }
+
+    // 2. Draw Outer Big Ring (50T) & Shimano Spider
+    {
+      const cr = bigCoord;
+      const isActive = (activeIndex === 1);
+      const rX = cr.r * rxScale;
+      const rY = cr.r * ryScale;
+
+      ctx.save();
+      // 3D Rim Bevel
+      const thickness = 2.6 * scale;
+      ctx.fillStyle = isActive ? '#14242e' : '#121620';
+      ctx.strokeStyle = isActive ? '#00e5ff' : '#252e40';
+      ctx.lineWidth = 1.2 * scale;
+
+      ctx.beginPath();
+      ctx.ellipse(cr.x + thickness, cr.y, rX, rY, 0, -Math.PI / 2, Math.PI / 2, false);
+      ctx.lineTo(cr.x, cr.y + rY);
+      ctx.ellipse(cr.x, cr.y, rX, rY, 0, Math.PI / 2, -Math.PI / 2, true);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Front Face
+      const grad = ctx.createLinearGradient(cr.x - rX, cr.y - rY, cr.x + rX, cr.y + rY);
+      grad.addColorStop(0, isActive ? '#1d3342' : '#222b3b');
       grad.addColorStop(0.5, '#141822');
       grad.addColorStop(1, '#0c0f16');
       ctx.fillStyle = grad;
       ctx.strokeStyle = isActive ? '#00ffc8' : '#303b4e';
-      ctx.lineWidth = (isActive ? 2.2 : 1.2);
+      ctx.lineWidth = (isActive ? 2.4 : 1.4) * scale;
 
       ctx.beginPath();
-      ctx.ellipse(cX, cY, rX, rY, 0, 0, Math.PI * 2);
+      ctx.ellipse(cr.x, cr.y, rX, rY, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      // 3D Chainring Teeth
+      // 50T Outer Teeth
       ctx.save();
-      ctx.translate(cX, cY);
-      const toothCount = (i === 1) ? 24 : 18;
+      ctx.translate(cr.x, cr.y);
+      const toothCount = 22;
       ctx.strokeStyle = isActive ? '#00ffc8' : '#455470';
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = 1.4 * scale;
       for (let t = 0; t < toothCount; t++) {
         const tAngle = (t / toothCount) * Math.PI * 2 + angle;
         const tx1 = Math.cos(tAngle) * (rX * 0.90);
@@ -378,78 +418,76 @@ export class DrivetrainRenderer {
         ctx.stroke();
       }
 
-      // 4-Arm Shimano Spider on Big Ring
-      if (i === 1) {
-        ctx.fillStyle = '#080a0f';
-        ctx.strokeStyle = '#1a202c';
-        ctx.lineWidth = 0.8;
-        for (let w = 0; w < 4; w++) {
-          const wAngle = (w * Math.PI / 2) + angle + 0.3;
-          const wx = Math.cos(wAngle) * (rX * 0.52);
-          const wy = Math.sin(wAngle) * (rY * 0.52);
-          ctx.beginPath();
-          ctx.ellipse(wx, wy, 2.5, 4.5, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-        }
+      // Machined Spider Windows
+      ctx.fillStyle = '#080a0f';
+      ctx.strokeStyle = '#1a202c';
+      ctx.lineWidth = 1 * scale;
+      for (let w = 0; w < 4; w++) {
+        const wAngle = (w * Math.PI / 2) + angle + 0.3;
+        const wx = Math.cos(wAngle) * (rX * 0.52);
+        const wy = Math.sin(wAngle) * (rY * 0.52);
+        ctx.beginPath();
+        ctx.ellipse(wx, wy, 3.5 * rxScale * scale, 5 * ryScale * scale, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
       }
+
       ctx.restore();
 
       // Label on top
       ctx.fillStyle = isActive ? '#ffffff' : '#6b768d';
-      ctx.font = `${isActive ? 'bold' : 'normal'} ${Math.round((isActive ? 10 : 8) * cr.pCenter.pScale)}px system-ui, sans-serif`;
+      ctx.font = `${isActive ? 'bold' : 'normal'} ${Math.round((isActive ? 10 : 8) * scale)}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      ctx.fillText(`${cr.teeth}`, cX, cY - rY - 2);
+      ctx.fillText('50', cr.x, cr.y - rY - 2 * scale);
 
       ctx.restore();
     }
 
-    // 3. 3D Crankarm & Pedal
+    // 3. Shimano Hollowtech II Crankarm & Pedal
     ctx.save();
-    const pBBCenter = bigCoord.pCenter;
-    ctx.translate(pBBCenter.sx + 2, pBBCenter.sy);
+    ctx.translate(bigCoord.x + 3 * scale, bigCoord.y);
 
-    const armLen = 48;
+    const armLen = 54 * scale;
     const armCos = Math.cos(angle);
     const armSin = Math.sin(angle);
-    const endX = armCos * (armLen * 0.28 * pBBCenter.pScale);
-    const endY = armSin * (armLen * pBBCenter.pScale);
+    const endX = armCos * (armLen * rxScale);
+    const endY = armSin * (armLen * ryScale);
 
     // Crankarm solid alloy beam
     ctx.strokeStyle = '#181d26';
-    ctx.lineWidth = 5 * pBBCenter.pScale;
+    ctx.lineWidth = 5.5 * scale;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(endX, endY);
     ctx.stroke();
 
-    // Crankarm metallic highlight
+    // Crankarm highlight line
     ctx.strokeStyle = '#384256';
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.2 * scale;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(endX, endY);
     ctx.stroke();
 
-    // Pedal Body at outer tip
-    const pedalWidth = 10 * pBBCenter.pScale;
-    const pedalHeight = 5 * pBBCenter.pScale;
+    // Compact Pedal Body on outer axle
+    const pedalWidth = 10 * scale;
+    const pedalHeight = 5 * scale;
     ctx.fillStyle = '#252c38';
     ctx.strokeStyle = '#4a5568';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1 * scale;
     ctx.beginPath();
-    ctx.roundRect(endX - 1, endY - (pedalHeight / 2), pedalWidth * 0.28, pedalHeight, 1.5);
+    ctx.roundRect(endX - 1 * scale, endY - (pedalHeight / 2), pedalWidth * rxScale, pedalHeight, 1.5);
     ctx.fill();
     ctx.stroke();
 
     // Center BB Cap
     ctx.fillStyle = '#0a0d13';
     ctx.strokeStyle = '#3e485c';
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1.2 * scale;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 5 * 0.28 * pBBCenter.pScale, 5 * pBBCenter.pScale, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 6 * rxScale * scale, 6 * ryScale * scale, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
@@ -459,37 +497,36 @@ export class DrivetrainRenderer {
   }
 
   /**
-   * Draw the 3D Chain connecting active rear sprocket to active front chainring
+   * Draw 3D Chain Line connecting active rear sprocket to active front chainring
    */
-  draw3DChain(centerX, centerY, sprocket, chainring, crossChaining, scale) {
+  draw3DChain(sprocket, chainring, rearTeeth, frontTeeth, crossChaining, rxScale, ryScale, scale = 1) {
     const ctx = this.ctx;
 
-    // 3D Tangent Points:
-    // Top Run: from (x_rear, y=0, +z_rear) to (x_front, y=360, +z_front)
-    const pRearTop = this.project(sprocket.xMm, sprocket.yMm, sprocket.radiusMm, centerX, centerY, scale);
-    const pFrontTop = this.project(chainring.xMm, chainring.yMm, chainring.radiusMm, centerX, centerY, scale);
+    const rRearX = sprocket.r * rxScale;
+    const rRearY = sprocket.r * ryScale;
+    const rFrontX = chainring.r * rxScale;
+    const rFrontY = chainring.r * ryScale;
 
-    // Bottom Run: from (x_front, y=360, -z_front) through Derailleur back to (x_rear, y=0, -z_rear)
-    const pFrontBottom = this.project(chainring.xMm, chainring.yMm, -chainring.radiusMm, centerX, centerY, scale);
-    const pDerailleurTension = this.project(sprocket.xMm + 2, sprocket.yMm + 20, -sprocket.radiusMm - 36, centerX, centerY, scale);
-    const pDerailleurGuide = this.project(sprocket.xMm - 2, sprocket.yMm + 10, -sprocket.radiusMm - 14, centerX, centerY, scale);
-    const pRearBottom = this.project(sprocket.xMm, sprocket.yMm, -sprocket.radiusMm, centerX, centerY, scale);
+    // 3D Tangent points
+    const pRearTop = { x: sprocket.x, y: sprocket.y - rRearY };
+    const pFrontTop = { x: chainring.x, y: chainring.y - rFrontY };
+    const pFrontBottom = { x: chainring.x, y: chainring.y + rFrontY };
 
-    const rFrontX = Math.abs(this.project(chainring.xMm, chainring.yMm + chainring.radiusMm * 0.28, 0, centerX, centerY, scale).sx - chainring.pCenter.sx);
-    const rFrontY = (pFrontBottom.sy - pFrontTop.sy) / 2;
-    const rRearX = Math.abs(this.project(sprocket.xMm, sprocket.yMm + sprocket.radiusMm * 0.28, 0, centerX, centerY, scale).sx - sprocket.pCenter.sx);
-    const rRearY = (pRearBottom.sy - pRearTop.sy) / 2;
+    // Derailleur entry points underneath active rear sprocket
+    const pDerailleurTension = { x: sprocket.x + 6 * scale, y: sprocket.y + rRearY + 34 * scale };
+    const pDerailleurGuide = { x: sprocket.x - 3 * scale, y: sprocket.y + rRearY + 13 * scale };
+    const pRearBottom = { x: sprocket.x, y: sprocket.y + rRearY };
 
-    let chainColor = '#00ffc8';
+    let chainColor = '#00ffc8'; // 🟢 Optimal (Green)
     let chainGlow = 'rgba(0, 255, 200, 0.45)';
     let strokeWidth = 4.5 * scale;
 
     if (crossChaining.level === 'severe') {
-      chainColor = '#ff3366';
+      chainColor = '#ff3366'; // 🔴 Extreme Cross-Chaining (Red)
       chainGlow = 'rgba(255, 51, 102, 0.75)';
       strokeWidth = 5.5 * scale;
     } else if (crossChaining.level === 'warning') {
-      chainColor = '#ffbb00';
+      chainColor = '#ffbb00'; // 🟡 Tolerable Warning (Yellow)
       chainGlow = 'rgba(255, 187, 0, 0.55)';
       strokeWidth = 5.0 * scale;
     }
@@ -502,28 +539,28 @@ export class DrivetrainRenderer {
     ctx.shadowColor = chainGlow;
     ctx.shadowBlur = 8 * scale;
 
-    // 1. Top 3D Chain Strand
+    // 1. Top 3D Chain Strand (Connecting Active Rear Cog to Active Front Ring)
     ctx.beginPath();
-    ctx.moveTo(pRearTop.sx, pRearTop.sy);
-    ctx.lineTo(pFrontTop.sx, pFrontTop.sy);
+    ctx.moveTo(pRearTop.x, pRearTop.y);
+    ctx.lineTo(pFrontTop.x, pFrontTop.y);
     ctx.stroke();
 
     // 2. Wrap around 3D front chainring
     ctx.beginPath();
-    ctx.ellipse(chainring.pCenter.sx, chainring.pCenter.sy, rFrontX, rFrontY, 0, -Math.PI / 2, Math.PI / 2, false);
+    ctx.ellipse(chainring.x, chainring.y, rFrontX, rFrontY, 0, -Math.PI / 2, Math.PI / 2, false);
     ctx.stroke();
 
-    // 3. Lower 3D return path through rear derailleur
+    // 3. Lower 3D return path through rear derailleur cage
     ctx.beginPath();
-    ctx.moveTo(pFrontBottom.sx, pFrontBottom.sy);
-    ctx.lineTo(pDerailleurTension.sx, pDerailleurTension.sy);
-    ctx.lineTo(pDerailleurGuide.sx, pDerailleurGuide.sy);
-    ctx.lineTo(pRearBottom.sx, pRearBottom.sy);
+    ctx.moveTo(pFrontBottom.x, pFrontBottom.y);
+    ctx.lineTo(pDerailleurTension.x, pDerailleurTension.y);
+    ctx.lineTo(pDerailleurGuide.x, pDerailleurGuide.y);
+    ctx.lineTo(pRearBottom.x, pRearBottom.y);
     ctx.stroke();
 
     // 4. Wrap around 3D rear sprocket
     ctx.beginPath();
-    ctx.ellipse(sprocket.pCenter.sx, sprocket.pCenter.sy, rRearX, rRearY, 0, Math.PI / 2, -Math.PI / 2, false);
+    ctx.ellipse(sprocket.x, sprocket.y, rRearX, rRearY, 0, Math.PI / 2, -Math.PI / 2, false);
     ctx.stroke();
 
     // 5. 3D Animated Chain Link Rollers
@@ -534,62 +571,65 @@ export class DrivetrainRenderer {
     ctx.lineDashOffset = -this.chainOffset;
 
     ctx.beginPath();
-    ctx.moveTo(pRearTop.sx, pRearTop.sy);
-    ctx.lineTo(pFrontTop.sx, pFrontTop.sy);
+    ctx.moveTo(pRearTop.x, pRearTop.y);
+    ctx.lineTo(pFrontTop.x, pFrontTop.y);
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(pFrontBottom.sx, pFrontBottom.sy);
-    ctx.lineTo(pDerailleurTension.sx, pDerailleurTension.sy);
+    ctx.moveTo(pFrontBottom.x, pFrontBottom.y);
+    ctx.lineTo(pDerailleurTension.x, pDerailleurTension.y);
     ctx.stroke();
 
     ctx.restore();
   }
 
   /**
-   * Draw 3D Rear Derailleur shifting directly under active rear cog
+   * Draw 3D Rear Derailleur shifting under the active rear cog in 3D
    */
-  draw3DDerailleur(centerX, centerY, activeSprocket, pulleyAngle, scale) {
+  draw3DDerailleur(activeSprocket, rearTeeth, pulleyAngle, rxScale, ryScale, scale = 1) {
     const ctx = this.ctx;
-    const pGuide = this.project(activeSprocket.xMm - 2, activeSprocket.yMm + 10, -activeSprocket.radiusMm - 14, centerX, centerY, scale);
-    const pTension = this.project(activeSprocket.xMm + 2, activeSprocket.yMm + 20, -activeSprocket.radiusMm - 36, centerX, centerY, scale);
-    const pMount = this.project(activeSprocket.xMm - 12, activeSprocket.yMm, 0, centerX, centerY, scale);
+    const rRearY = activeSprocket.r * ryScale;
+
+    const guideX = activeSprocket.x - 3 * scale;
+    const guideY = activeSprocket.y + rRearY + 13 * scale;
+    const tensionX = activeSprocket.x + 6 * scale;
+    const tensionY = activeSprocket.y + rRearY + 34 * scale;
 
     ctx.save();
     // 3D Derailleur Shadow Body
     ctx.strokeStyle = '#1e2430';
-    ctx.lineWidth = 4.5 * pGuide.pScale;
+    ctx.lineWidth = 4.5 * scale;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(pMount.sx, pMount.sy);
-    ctx.lineTo(pGuide.sx, pGuide.sy);
-    ctx.lineTo(pTension.sx, pTension.sy);
+    ctx.moveTo(activeSprocket.x - 12 * scale, activeSprocket.y);
+    ctx.lineTo(guideX, guideY);
+    ctx.lineTo(tensionX, tensionY);
     ctx.stroke();
 
     // Helper to draw spinning 11T jockey wheel in perspective
-    const drawPulley = (p, angle) => {
+    const drawPulley = (px, py, angle) => {
       ctx.save();
-      ctx.translate(p.sx, p.sy);
+      ctx.translate(px, py);
 
       ctx.fillStyle = '#0f1218';
       ctx.strokeStyle = '#00e5ff';
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = 1.2 * scale;
       ctx.beginPath();
-      ctx.ellipse(0, 0, 5 * 0.28 * p.pScale, 5 * p.pScale, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 6.5 * rxScale * scale, 6.5 * ryScale * scale, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
       // Pulley Bolt
       ctx.fillStyle = '#4a5568';
       ctx.beginPath();
-      ctx.arc(0, 0, 2 * p.pScale, 0, Math.PI * 2);
+      ctx.arc(0, 0, 2 * scale, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();
     };
 
-    drawPulley(pGuide, pulleyAngle);
-    drawPulley(pTension, -pulleyAngle);
+    drawPulley(guideX, guideY, pulleyAngle);
+    drawPulley(tensionX, tensionY, -pulleyAngle);
 
     ctx.restore();
   }
