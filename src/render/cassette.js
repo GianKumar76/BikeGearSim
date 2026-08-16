@@ -61,8 +61,8 @@ export class DrivetrainRenderer {
     const baseRearY = h * 0.46;
 
     // Front Chainrings in the background-right (further away in depth)
-    const baseFrontX = w * 0.78;
-    const baseFrontY = h * 0.38;
+    const baseFrontX = w * 0.77;
+    const baseFrontY = h * 0.46;
 
     // Perspective Ellipse Ratios (viewed obliquely at ~35° angle):
     const rxScale = 0.58; // Foreshortened horizontal width of 3D discs
@@ -276,26 +276,26 @@ export class DrivetrainRenderer {
   }
 
   /**
-   * Render the 2 Front Chainrings (34T & 50T) with Crankarm in 3D Perspective
+   * Render the 2 Front Chainrings (34T & 50T) with realistic Shimano Crankset in 3D Perspective
    */
   draw3DChainrings(baseX, baseY, chainrings, activeIndex, angle, rxScale, ryScale, scale = 1) {
     const ctx = this.ctx;
     const chainringCoords = [];
 
     // Inner small ring (34T) is offset left/back in 3D space
-    const rSmall = (35 + (chainrings[0] - 34) * 2.2) * scale;
+    const rSmall = 36 * scale;
     const smallCoord = {
-      x: baseX - 9 * scale,
-      y: baseY - 2 * scale,
+      x: baseX - 8 * scale,
+      y: baseY - 1 * scale,
       r: rSmall,
       teeth: chainrings[0],
       index: 0
     };
 
     // Outer big ring (50T) is offset right/front in 3D space (closer to viewer)
-    const rBig = (35 + (chainrings[1] - 34) * 2.2) * scale;
+    const rBig = 52 * scale;
     const bigCoord = {
-      x: baseX + 5 * scale,
+      x: baseX + 4 * scale,
       y: baseY + 1 * scale,
       r: rBig,
       teeth: chainrings[1],
@@ -304,19 +304,92 @@ export class DrivetrainRenderer {
 
     chainringCoords.push(smallCoord, bigCoord);
 
-    // Draw from inner (34T) to outer (50T)
-    for (let i = 0; i < chainringCoords.length; i++) {
-      const cr = chainringCoords[i];
-      const isActive = (i === activeIndex);
+    // 1. Draw Inner Small Ring (34T)
+    {
+      const cr = smallCoord;
+      const isActive = (activeIndex === 0);
       const rX = cr.r * rxScale;
       const rY = cr.r * ryScale;
 
       ctx.save();
+      // 3D Rim Bevel
+      const thickness = 2.5 * scale;
+      ctx.fillStyle = isActive ? '#142929' : '#11141c';
+      ctx.strokeStyle = isActive ? '#00e5ff' : '#1e2432';
+      ctx.lineWidth = 1.2 * scale;
 
-      // 3D Rim bevel
-      const thickness = 3.5 * scale;
+      ctx.beginPath();
+      ctx.ellipse(cr.x + thickness, cr.y, rX, rY, 0, -Math.PI / 2, Math.PI / 2, false);
+      ctx.lineTo(cr.x, cr.y + rY);
+      ctx.ellipse(cr.x, cr.y, rX, rY, 0, Math.PI / 2, -Math.PI / 2, true);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Front Face
+      ctx.beginPath();
+      ctx.ellipse(cr.x, cr.y, rX, rY, 0, 0, Math.PI * 2);
+      if (isActive) {
+        ctx.fillStyle = 'rgba(0, 255, 200, 0.18)';
+        ctx.strokeStyle = '#00ffc8';
+        ctx.lineWidth = 2.8 * scale;
+        ctx.shadowColor = '#00ffc8';
+        ctx.shadowBlur = 12 * scale;
+      } else {
+        const grad = ctx.createLinearGradient(cr.x - rX, cr.y - rY, cr.x + rX, cr.y + rY);
+        grad.addColorStop(0, '#1c2230');
+        grad.addColorStop(1, '#0c0f16');
+        ctx.fillStyle = grad;
+        ctx.strokeStyle = '#283144';
+        ctx.lineWidth = 1.2 * scale;
+        ctx.shadowBlur = 0;
+      }
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Small Ring Teeth
+      ctx.save();
+      ctx.translate(cr.x, cr.y);
+      const toothCount = 18;
+      ctx.strokeStyle = isActive ? '#00e5ff' : '#384358';
+      ctx.lineWidth = 1.4 * scale;
+      for (let t = 0; t < toothCount; t++) {
+        const tAngle = (t / toothCount) * Math.PI * 2 + angle;
+        const tx1 = Math.cos(tAngle) * (rX * 0.88);
+        const ty1 = Math.sin(tAngle) * (rY * 0.88);
+        const tx2 = Math.cos(tAngle + 0.08) * (rX * 1.08);
+        const ty2 = Math.sin(tAngle + 0.08) * (rY * 1.08);
+        ctx.beginPath();
+        ctx.moveTo(tx1, ty1);
+        ctx.lineTo(tx2, ty2);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Label on top
+      if (isActive) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.round(10 * scale)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('34Z', cr.x, cr.y - rY - 3 * scale);
+      }
+      ctx.restore();
+    }
+
+    // 2. Draw Outer Big Ring (50T) & Shimano 4-Arm Spider
+    {
+      const cr = bigCoord;
+      const isActive = (activeIndex === 1);
+      const rX = cr.r * rxScale;
+      const rY = cr.r * ryScale;
+
+      ctx.save();
+      // 3D Rim Bevel
+      const thickness = 3.2 * scale;
       ctx.fillStyle = isActive ? '#142929' : '#141822';
-      ctx.strokeStyle = isActive ? '#00e5ff' : '#222838';
+      ctx.strokeStyle = isActive ? '#00e5ff' : '#252e40';
       ctx.lineWidth = 1.4 * scale;
 
       ctx.beginPath();
@@ -330,34 +403,32 @@ export class DrivetrainRenderer {
       // Front Face
       ctx.beginPath();
       ctx.ellipse(cr.x, cr.y, rX, rY, 0, 0, Math.PI * 2);
-
       if (isActive) {
         ctx.fillStyle = 'rgba(0, 255, 200, 0.16)';
         ctx.strokeStyle = '#00ffc8';
-        ctx.lineWidth = 3.2 * scale;
+        ctx.lineWidth = 3.0 * scale;
         ctx.shadowColor = '#00ffc8';
         ctx.shadowBlur = 14 * scale;
       } else {
         const grad = ctx.createLinearGradient(cr.x - rX, cr.y - rY, cr.x + rX, cr.y + rY);
-        grad.addColorStop(0, '#262f40');
-        grad.addColorStop(0.5, '#171b26');
-        grad.addColorStop(1, '#0e1118');
+        grad.addColorStop(0, '#222a3a');
+        grad.addColorStop(0.5, '#151924');
+        grad.addColorStop(1, '#0d1017');
         ctx.fillStyle = grad;
-        ctx.strokeStyle = '#353f54';
-        ctx.lineWidth = 1.8 * scale;
+        ctx.strokeStyle = '#323c50';
+        ctx.lineWidth = 1.6 * scale;
         ctx.shadowBlur = 0;
       }
       ctx.fill();
       ctx.stroke();
       ctx.shadowBlur = 0;
 
-      // 3D Chainring Teeth
+      // 50T Outer Teeth
       ctx.save();
       ctx.translate(cr.x, cr.y);
-      const toothCount = Math.min(cr.teeth, 24);
-      ctx.strokeStyle = isActive ? '#00ffc8' : '#424f68';
-      ctx.lineWidth = 2.0 * scale;
-
+      const toothCount = 24;
+      ctx.strokeStyle = isActive ? '#00e5ff' : '#45536e';
+      ctx.lineWidth = 1.6 * scale;
       for (let t = 0; t < toothCount; t++) {
         const tAngle = (t / toothCount) * Math.PI * 2 + angle;
         const tx1 = Math.cos(tAngle) * (rX * 0.90);
@@ -370,68 +441,87 @@ export class DrivetrainRenderer {
         ctx.stroke();
       }
 
-      // 4-Arm Hollowtech II Spider Design on outer ring
-      if (i === 1) {
-        ctx.strokeStyle = '#1a1f2b';
-        ctx.lineWidth = 9 * scale;
-        for (let a = 0; a < 4; a++) {
-          const armAngle = (a * Math.PI / 2) + angle;
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.lineTo(Math.cos(armAngle) * (rX * 0.82), Math.sin(armAngle) * (rY * 0.82));
-          ctx.stroke();
-        }
+      // Shimano 4-Arm Hollowtech II Spider Profile
+      const spiderAngles = [0.2, 1.4, 3.2, 4.6]; // Shimano 4-arm asymmetrical angles
+      ctx.strokeStyle = '#181e2b';
+      ctx.lineWidth = 7 * scale;
+      ctx.lineCap = 'round';
+      for (const sa of spiderAngles) {
+        const armAngle = sa + angle;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(armAngle) * (rX * 0.78), Math.sin(armAngle) * (rY * 0.78));
+        ctx.stroke();
+      }
+
+      // Machined chainring bolt covers
+      for (const sa of spiderAngles) {
+        const armAngle = sa + angle;
+        const bx = Math.cos(armAngle) * (rX * 0.72);
+        const by = Math.sin(armAngle) * (rY * 0.72);
+        ctx.fillStyle = '#2e384c';
+        ctx.beginPath();
+        ctx.arc(bx, by, 2.2 * scale, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       ctx.restore();
 
-      // Chainring Label tag
-      ctx.fillStyle = isActive ? '#ffffff' : '#707c96';
-      ctx.font = `${isActive ? 'bold' : 'normal'} ${Math.round((isActive ? 11 : 9) * scale)}px system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(`${cr.teeth}Z`, cr.x, cr.y - rY - 3 * scale);
-
+      // Label on top
+      if (isActive) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.round(10 * scale)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('50Z', cr.x, cr.y - rY - 3 * scale);
+      }
       ctx.restore();
     }
 
-    // 3D Crankarm & Pedal on the outer right
+    // 3. Shimano Hollowtech II Crankarm & Pedal
     ctx.save();
     ctx.translate(bigCoord.x, bigCoord.y);
-    
-    // Slanted 3D crankarm
-    ctx.fillStyle = '#181b24';
-    ctx.strokeStyle = '#3e4658';
-    ctx.lineWidth = 2 * scale;
+
+    // Realistic rotating crankarm
+    const armLen = 74 * scale;
+    const armAngle = angle;
+    const armCos = Math.cos(armAngle);
+    const armSin = Math.sin(armAngle);
+    const endX = armCos * (armLen * rxScale);
+    const endY = armSin * (armLen * ryScale);
+
+    // Crankarm Main Beam
+    ctx.strokeStyle = '#1d2330';
+    ctx.lineWidth = 14 * scale;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    const armLen = 78 * scale;
-    const armX = Math.cos(angle) * (armLen * rxScale);
-    const armY = Math.sin(angle) * (armLen * ryScale);
-    
+    ctx.moveTo(0, 0);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+
+    // Crankarm Silver Highlight Bevel
+    ctx.strokeStyle = '#3d485e';
+    ctx.lineWidth = 1.5 * scale;
     ctx.beginPath();
-    ctx.moveTo(-6 * scale, -6 * scale);
-    ctx.lineTo(armX - 6 * scale, armY - 6 * scale);
-    ctx.lineTo(armX + 6 * scale, armY + 6 * scale);
-    ctx.lineTo(6 * scale, 6 * scale);
-    ctx.closePath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+
+    // 3D Pedal & Axle at Crankarm Tip
+    ctx.fillStyle = '#222938';
+    ctx.strokeStyle = '#00ffc8';
+    ctx.lineWidth = 1.5 * scale;
+    ctx.beginPath();
+    ctx.ellipse(endX, endY, 9 * rxScale * scale, 12 * ryScale * scale, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // 3D Pedal
-    ctx.fillStyle = '#262d3a';
-    ctx.strokeStyle = '#00ffc8';
-    ctx.lineWidth = 1.4 * scale;
-    ctx.beginPath();
-    ctx.ellipse(armX, armY, 12 * rxScale * scale, 12 * ryScale * scale, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // BB Center Cap
-    ctx.fillStyle = '#0b0e14';
-    ctx.strokeStyle = '#00ffc8';
+    // Center BB Cap with Shimano Accent Ring
+    ctx.fillStyle = '#0a0d14';
+    ctx.strokeStyle = '#00e5ff';
     ctx.lineWidth = 2 * scale;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 11 * rxScale * scale, 11 * ryScale * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 10 * rxScale * scale, 10 * ryScale * scale, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
