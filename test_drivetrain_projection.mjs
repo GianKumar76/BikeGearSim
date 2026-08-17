@@ -25,9 +25,10 @@ const longitudinalAngle = Math.atan2(
   camera.longitudinalVector.y,
   camera.longitudinalVector.x
 );
-assert.ok(longitudinalAngle < -0.09 && longitudinalAngle > -0.25);
-assert.ok(camera.verticalVector.x < 0 && camera.verticalVector.y > 0);
-assert.ok(camera.axleVector.x > 0 && camera.axleVector.y > 0.45);
+assert.ok(longitudinalAngle < -0.015 && longitudinalAngle > -0.08);
+assert.ok(camera.verticalVector.x < 0 && camera.verticalVector.x > -0.15);
+assert.ok(camera.verticalVector.y > 0.95);
+assert.ok(camera.axleVector.x > 0.9 && camera.axleVector.y > 0.2);
 assert.ok(Math.abs(camera.ellipseRotation - longitudinalAngle) < EPSILON);
 
 const geometry = createDrivetrainGeometry({
@@ -38,7 +39,7 @@ const geometry = createDrivetrainGeometry({
   chainrings: [34, 50]
 });
 
-assert.equal(geometry.projection.rxScale, 0.38);
+assert.equal(geometry.projection.rxScale, 0.70);
 assert.equal(geometry.projection.ryScale, 1);
 assert.strictEqual(geometry.camera, geometry.projection.camera);
 assert.equal(geometry.projection.ellipseRotation, camera.ellipseRotation);
